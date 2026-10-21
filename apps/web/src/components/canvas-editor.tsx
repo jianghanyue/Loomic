@@ -13,6 +13,7 @@ import { VideoCanvasElement } from "./canvas/video-canvas-element";
 import { isVideoUrl } from "../lib/canvas-elements";
 import { CanvasToolMenu } from "./canvas-tool-menu";
 import { normalizeCanvasElements } from "../lib/canvas-normalize";
+import { observeContextMenus } from "../lib/excalidraw-zh";
 import { ErrorBoundary } from "./error-boundary";
 
 const Excalidraw = dynamic(
@@ -556,13 +557,21 @@ export function CanvasEditor({
   // Allow any URL as a valid embeddable so our video links are accepted
   const validateEmbeddable = useCallback(() => true, []);
 
+  // Fill gaps in Excalidraw's zh-CN context menu (see lib/excalidraw-zh)
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!containerRef.current) return;
+    return observeContextMenus(containerRef.current);
+  }, []);
+
   return (
     <ErrorBoundary
       onError={(err) => console.error("[canvas-editor] render crashed:", err)}
     >
-      <div className="h-full w-full relative">
+      <div ref={containerRef} className="h-full w-full relative">
         <Excalidraw
           theme={resolvedTheme === "dark" ? "dark" : "light"}
+          langCode="zh-CN"
           initialData={{
             elements: initialContent.elements as any,
             appState: initialContent.appState as any,
