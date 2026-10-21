@@ -13,6 +13,7 @@ import { useJobFallbackPolling } from "../../hooks/use-job-fallback-polling";
 import { CanvasEditor } from "../../components/canvas-editor";
 import { ChatSidebar } from "../../components/chat-sidebar";
 import { CanvasEmptyHint } from "../../components/canvas-empty-hint";
+import { ImageOpsBar } from "../../components/image-ops-bar";
 import { CanvasLogoMenu } from "../../components/canvas-logo-menu";
 import { EditableProjectName } from "../../components/editable-project-name";
 import { insertImageOnCanvas, insertVideoOnCanvas } from "../../lib/canvas-elements";
@@ -285,6 +286,13 @@ function CanvasPageContent() {
         <CanvasEmptyHint
           excalidrawApi={excalidrawApi}
           onOpenChat={handleOpenChat}
+        />
+        <ImageOpsBar
+          accessToken={accessToken}
+          canvasId={canvasData.id}
+          excalidrawApi={excalidrawApi}
+          selected={selectedCanvasElements}
+          onCanvasSync={handleCanvasSync}
         />
         <CanvasBottomBar
           excalidrawApi={excalidrawApi}

@@ -32,7 +32,14 @@ const GOOGLE_MODELS: ModelInfo[] = [
 export async function registerModelRoutes(app: FastifyInstance, env: ServerEnv) {
   app.get("/api/models", async (_request, reply) => {
     const models: ModelInfo[] = [];
-    if (env.openAIApiKey) models.push(...OPENAI_MODELS);
+    if (env.openAIApiKey && env.openAIApiBase) {
+      // Custom OpenAI-compatible endpoint (e.g. DashScope/Qwen): the OpenAI
+      // catalog IDs won't exist there, so only offer the configured model.
+      const id = env.agentModel.includes(":") ? env.agentModel : `openai:${env.agentModel}`;
+      models.push({ id, name: id.slice(id.indexOf(":") + 1), provider: "openai" });
+    } else if (env.openAIApiKey) {
+      models.push(...OPENAI_MODELS);
+    }
     if (env.googleApiKey || env.googleVertexProject) models.push(...GOOGLE_MODELS);
     return reply.code(200).send(modelListResponseSchema.parse({ models }));
   });

@@ -103,7 +103,7 @@ export async function loadWorkspaceSkills(
 /**
  * Resolve canvas ID → workspace ID via the canvas → project join.
  */
-async function resolveWorkspaceId(
+export async function resolveWorkspaceId(
   client: UserSupabaseClient,
   canvasId: string,
 ): Promise<string | null> {

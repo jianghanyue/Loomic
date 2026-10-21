@@ -10,6 +10,9 @@ import {
   type PersistImageFn,
   type SubmitImageJobFn,
 } from "./image-generate.js";
+import type { ComfyClient } from "../../generation/comfyui/client.js";
+import { createImageOpTools } from "./image-ops.js";
+import { createPatternTools } from "./pattern.js";
 import { createProjectSearchTool } from "./project-search.js";
 import { createScreenshotCanvasTool } from "./screenshot-canvas.js";
 import {
@@ -61,6 +64,7 @@ export function createMainAgentTools(
     sandboxDir?: string;
     submitImageJob?: SubmitImageJobFn;
     submitVideoJob?: SubmitVideoJobFn;
+    comfy?: ComfyClient | undefined;
   },
 ) {
   const tools: StructuredTool[] = [
@@ -78,6 +82,8 @@ export function createMainAgentTools(
       createUserClient: deps.createUserClient,
       ...(deps.sandboxDir ? { sandboxDir: deps.sandboxDir } : {}),
     }),
+    ...createPatternTools(deps),
+    ...createImageOpTools(deps),
     // execute 工具由 deepagents FilesystemMiddleware 自动注入，
     // 因为 CompositeBackend 的 default backend 是 LocalShellBackend。
     // 不需要在这里手动注册。

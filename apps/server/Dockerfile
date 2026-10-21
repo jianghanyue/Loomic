@@ -13,6 +13,7 @@ COPY turbo.json ./
 COPY apps/server/package.json apps/server/
 COPY packages/shared/package.json packages/shared/
 COPY packages/config/package.json packages/config/
+COPY packages/textile/package.json packages/textile/
 
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
@@ -26,15 +27,17 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/server/node_modules ./apps/server/node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY --from=deps /app/packages/textile/node_modules ./packages/textile/node_modules
 
 # Copy source (tsconfig.base.json is needed by shared/config builds)
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
 COPY packages/shared/ packages/shared/
 COPY packages/config/ packages/config/
+COPY packages/textile/ packages/textile/
 COPY apps/server/ apps/server/
 
-# Build @loomic/shared (server depends on it)
-RUN pnpm --filter @loomic/shared build
+# Build workspace packages the server depends on
+RUN pnpm --filter @loomic/shared --filter @loomic/textile build
 
 # ── Stage 3: Production image ─────────────────────────────────────
 FROM node:22-slim AS production

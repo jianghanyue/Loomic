@@ -11,8 +11,10 @@ import {
 
 import type { ServerEnv } from "../../config/env.js";
 import type { AgentBackendResult } from "./index.js";
+import { NoExecuteCompositeBackend } from "./no-execute.js";
 
-type AgentBackendEnv = Pick<ServerEnv, "agentFilesRoot" | "skillsRoot">;
+type AgentBackendEnv = Pick<ServerEnv, "agentFilesRoot" | "skillsRoot"> &
+  Partial<Pick<ServerEnv, "agentAllowExecute">>;
 
 const DEFAULT_DEV_SANDBOX_ROOT = "/tmp/loomic-sandbox-dev";
 
@@ -44,17 +46,21 @@ export function createDevelopmentBackend(
 
   const skillsRoot = resolve(env.skillsRoot ?? join(env.agentFilesRoot, "skills"));
 
-  const sandbox = new LocalShellBackend({
-    rootDir: sandboxDir,
-    timeout: 120,
-    maxOutputBytes: 200_000,
-    env: {
-      PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
-      HOME: process.env.HOME ?? "/tmp",
-      FONT_DIR: join(skillsRoot, "canvas-design", "canvas-fonts"),
-      PYTHONDONTWRITEBYTECODE: "1",
-    },
-  });
+  // Without LOOMIC_AGENT_ALLOW_EXECUTE=true the default backend has no
+  // execute() and the composite hides the shell tool (see no-execute.ts).
+  const sandbox = env.agentAllowExecute
+    ? new LocalShellBackend({
+        rootDir: sandboxDir,
+        timeout: 120,
+        maxOutputBytes: 200_000,
+        env: {
+          PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
+          HOME: process.env.HOME ?? "/tmp",
+          FONT_DIR: join(skillsRoot, "canvas-design", "canvas-fonts"),
+          PYTHONDONTWRITEBYTECODE: "1",
+        },
+      })
+    : new FilesystemBackend({ rootDir: sandboxDir, virtualMode: true });
   const skillsBackend = new FilesystemBackend({ rootDir: skillsRoot, virtualMode: true });
 
   const workspaceBackend = new FilesystemBackend({
@@ -75,7 +81,9 @@ export function createDevelopmentBackend(
       });
     }
 
-    return new CompositeBackend(sandbox, routes);
+    return env.agentAllowExecute
+      ? new CompositeBackend(sandbox, routes)
+      : new NoExecuteCompositeBackend(sandbox, routes);
   };
 
   return { factory, sandboxDir: realSandboxDir };

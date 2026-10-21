@@ -46,7 +46,7 @@ import {
   createUploadService,
   type UploadService,
 } from "./features/uploads/upload-service.js";
-import { type ServerEnv, loadServerEnv, resolveDefaultAgentModel } from "./config/env.js";
+import { type ServerEnv, loadServerEnv } from "./config/env.js";
 import { createPgmqClient } from "./queue/pgmq-client.js";
 import {
   createCreditService,
@@ -73,6 +73,7 @@ import { registerFontsRoutes } from "./http/fonts.js";
 import { registerJobRoutes } from "./http/jobs.js";
 import { registerBrandKitRoutes } from "./http/brand-kits.js";
 import { registerCanvasRoutes } from "./http/canvases.js";
+import { registerImageOpRoutes } from "./http/image-ops.js";
 import { registerChatRoutes } from "./http/chat.js";
 import { registerGenerateRoutes } from "./http/generate.js";
 import { registerHealthRoutes } from "./http/health.js";
@@ -177,7 +178,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     options.settingsService ??
       createSettingsService({
         createUserClient,
-        defaultModel: resolveDefaultAgentModel(env),
+        // env.agentModel already falls back to resolveDefaultAgentModel when
+        // LOOMIC_AGENT_MODEL is unset; using it keeps an explicit setting.
+        defaultModel: env.agentModel,
       });
   const uploadService =
     options.uploadService ?? createUploadService({ createUserClient });
@@ -285,6 +288,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   void registerCanvasRoutes(app, {
     auth,
     canvasService,
+  });
+  void registerImageOpRoutes(app, {
+    auth,
+    createUserClient,
+    env,
   });
   void registerSettingsRoutes(app, {
     auth,

@@ -7,7 +7,8 @@ import { createProductionBackendFactory } from "./prod.js";
 type AgentBackendEnv = Pick<
   ServerEnv,
   "agentBackendMode" | "agentFilesRoot" | "skillsRoot"
->;
+> &
+  Partial<Pick<ServerEnv, "agentAllowExecute">>;
 
 export type AgentBackendResult = {
   factory: BackendFactory;
@@ -34,6 +35,7 @@ export function createAgentBackend(
   }
 
   return createProductionBackendFactory(canvasId, {
+    allowExecute: env.agentAllowExecute === true,
     ...(env.skillsRoot ? { skillsRoot: env.skillsRoot } : {}),
     ...(options?.hasWorkspaceSkills ? { hasWorkspaceSkills: true } : {}),
   });

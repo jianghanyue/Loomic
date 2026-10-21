@@ -210,6 +210,48 @@ export async function saveCanvas(
   if (!response.ok) return handleErrorResponse(response);
 }
 
+export type ImageOpName =
+  | "remove_background"
+  | "upscale_image"
+  | "split_layers"
+  | "erase_region"
+  | "edit_image"
+  | "vectorize_image";
+
+export type ImageOpCapabilities = {
+  comfyui: boolean;
+  ops: Record<ImageOpName, boolean>;
+};
+
+export async function fetchImageOpCapabilities(
+  accessToken: string,
+): Promise<ImageOpCapabilities> {
+  const response = await fetch(
+    `${getServerBaseUrl()}/api/image-ops/capabilities`,
+    { headers: authHeaders(accessToken) },
+  );
+  if (!response.ok) return handleErrorResponse(response);
+  return (await response.json()) as ImageOpCapabilities;
+}
+
+/** Run an image operation on a canvas image; results are written to the canvas. */
+export async function runImageOp(
+  accessToken: string,
+  canvasId: string,
+  input: { op: ImageOpName; elementId: string } & Record<string, unknown>,
+): Promise<{ elementIds: string[]; method: string; summary: string; originalUrl?: string }> {
+  const response = await fetch(
+    `${getServerBaseUrl()}/api/canvases/${canvasId}/image-ops`,
+    {
+      method: "POST",
+      headers: authJsonHeaders(accessToken),
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) return handleErrorResponse(response);
+  return await response.json();
+}
+
 export async function uploadThumbnail(
   accessToken: string,
   projectId: string,

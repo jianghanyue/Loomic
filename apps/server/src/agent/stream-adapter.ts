@@ -42,6 +42,18 @@ type AdaptDeepAgentStreamOptions = {
 const SUB_AGENT_PARENT_TOOLS = new Set(["video_generate"]);
 /** Inner tools that may be suppressed when running inside a sub-agent. */
 const INNER_SUB_AGENT_TOOLS = new Set(["generate_video"]);
+/** Tools that write canvas content directly; the frontend re-fetches after them. */
+const CANVAS_WRITING_TOOLS = new Set([
+  "manipulate_canvas",
+  "create_pattern",
+  "layout_pattern",
+  "remove_background",
+  "upscale_image",
+  "split_layers",
+  "erase_region",
+  "edit_image",
+  "vectorize_image",
+]);
 
 export async function* adaptDeepAgentStream(
   options: AdaptDeepAgentStreamOptions,
@@ -252,7 +264,7 @@ export async function* adaptDeepAgentStream(
           activeSubAgentRuns.delete(toolCallId);
         }
 
-        if (toolName === "manipulate_canvas") {
+        if (CANVAS_WRITING_TOOLS.has(toolName)) {
           yield {
             type: "canvas.sync" as const,
             runId: options.runId,

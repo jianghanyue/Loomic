@@ -25,9 +25,14 @@ export function resolveDefaultAgentModel(env: {
 export type AgentBackendMode = "filesystem" | "state";
 
 export type ServerEnv = {
+  /** Expose the deepagents `execute` shell tool. Off unless LOOMIC_AGENT_ALLOW_EXECUTE=true. */
+  agentAllowExecute: boolean;
   agentBackendMode: AgentBackendMode;
   agentFilesRoot?: string;
   agentModel: string;
+  /** ComfyUI server for image operations (cutout, upscale, layers, …). */
+  comfyuiBaseUrl?: string;
+  comfyuiTimeoutMs?: number;
   googleApiKey?: string;
   googleApplicationCredentials?: string;
   googleFontsApiKey?: string;
@@ -160,6 +165,13 @@ export function loadServerEnv(
     normalizeOptionalString(source.LEMONSQUEEZY_VARIANT_BUSINESS_YEARLY);
   const skillsRoot =
     overrides.skillsRoot ?? normalizeOptionalString(source.LOOMIC_SKILLS_ROOT);
+  const comfyuiBaseUrl =
+    overrides.comfyuiBaseUrl ?? normalizeOptionalString(source.COMFYUI_BASE_URL);
+  const comfyuiTimeoutMs =
+    overrides.comfyuiTimeoutMs ??
+    (source.COMFYUI_TIMEOUT_MS
+      ? Number.parseInt(source.COMFYUI_TIMEOUT_MS, 10)
+      : undefined);
   const workerConcurrency =
     overrides.workerConcurrency ??
     (source.WORKER_CONCURRENCY
@@ -202,6 +214,9 @@ export function loadServerEnv(
     });
 
   return {
+    agentAllowExecute:
+      overrides.agentAllowExecute ??
+      source.LOOMIC_AGENT_ALLOW_EXECUTE?.trim().toLowerCase() === "true",
     agentBackendMode:
       overrides.agentBackendMode ??
       parseAgentBackendMode(source.LOOMIC_AGENT_BACKEND_MODE),
@@ -254,6 +269,8 @@ export function loadServerEnv(
       ? { lemonSqueezyVariantBusinessYearly }
       : {}),
     ...(skillsRoot ? { skillsRoot } : {}),
+    ...(comfyuiBaseUrl ? { comfyuiBaseUrl } : {}),
+    ...(comfyuiTimeoutMs ? { comfyuiTimeoutMs } : {}),
     ...(workerConcurrency ? { workerConcurrency } : {}),
     ...(workerImageConcurrency ? { workerImageConcurrency } : {}),
     ...(workerVideoConcurrency ? { workerVideoConcurrency } : {}),

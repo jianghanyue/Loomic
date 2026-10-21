@@ -6,6 +6,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { createDeepAgent } from "deepagents";
 
 import { DEFAULT_AGENT_MODEL, DEFAULT_GOOGLE_AGENT_MODEL, type ServerEnv } from "../config/env.js";
+import { comfyFromEnv } from "../features/image-ops/context.js";
 import type { ConnectionManager } from "../ws/connection-manager.js";
 import { createAgentBackend, type AgentBackendResult } from "./backends/index.js";
 import { LOOMIC_SYSTEM_PROMPT } from "./prompts/loomic-main.js";
@@ -118,6 +119,7 @@ export function createLoomicDeepAgent(options: {
 
       ...(options.submitImageJob ? { submitImageJob: options.submitImageJob } : {}),
       ...(options.submitVideoJob ? { submitVideoJob: options.submitVideoJob } : {}),
+      comfy: comfyFromEnv(options.env),
     }),
   });
 }

@@ -9,6 +9,8 @@ import {
   StoreBackend,
 } from "deepagents";
 
+import { NoExecuteCompositeBackend } from "./no-execute.js";
+
 const DEFAULT_SANDBOX_ROOT = "/tmp/loomic-sandbox";
 const DEFAULT_SKILLS_ROOT = "/opt/loomic/skills";
 
@@ -31,6 +33,8 @@ const DEFAULT_SKILLS_ROOT = "/opt/loomic/skills";
 export function createProductionBackendFactory(
   canvasId: string,
   options?: {
+    /** Use LocalShellBackend (exposes `execute`). Defaults to false. */
+    allowExecute?: boolean;
     sandboxRoot?: string;
     skillsRoot?: string;
     hasWorkspaceSkills?: boolean;
@@ -50,18 +54,22 @@ export function createProductionBackendFactory(
   // virtualMode: true 限制文件工具（write_file/read_file/ls 等）只能操作 rootDir 内的文件。
   // 防止多用户并发时通过 write_file 写绝对路径导致冲突。
   // 注意：virtualMode 不限制 execute 工具（shell 命令仍可访问全文件系统）。
-  const sandbox = new LocalShellBackend({
-    rootDir: sandboxDir,
-    virtualMode: true,
-    timeout: 120,
-    maxOutputBytes: 200_000,
-    env: {
-      PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
-      HOME: sandboxDir,
-      FONT_DIR: join(skillsRoot, "canvas-design", "canvas-fonts"),
-      PYTHONDONTWRITEBYTECODE: "1",
-    },
-  });
+  // 因此默认用不带 execute 的 FilesystemBackend，并用 NoExecuteCompositeBackend
+  // 让 deepagents 隐藏 execute 工具及其系统提示（原因见 no-execute.ts）。
+  const sandbox = options?.allowExecute
+    ? new LocalShellBackend({
+        rootDir: sandboxDir,
+        virtualMode: true,
+        timeout: 120,
+        maxOutputBytes: 200_000,
+        env: {
+          PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
+          HOME: sandboxDir,
+          FONT_DIR: join(skillsRoot, "canvas-design", "canvas-fonts"),
+          PYTHONDONTWRITEBYTECODE: "1",
+        },
+      })
+    : new FilesystemBackend({ rootDir: sandboxDir, virtualMode: true });
 
   const skillsBackend = new FilesystemBackend({ rootDir: skillsRoot, virtualMode: true });
 
@@ -82,7 +90,9 @@ export function createProductionBackendFactory(
       });
     }
 
-    return new CompositeBackend(sandbox, routes);
+    return options?.allowExecute
+      ? new CompositeBackend(sandbox, routes)
+      : new NoExecuteCompositeBackend(sandbox, routes);
   };
 
   return { factory, sandboxDir: realSandboxDir };

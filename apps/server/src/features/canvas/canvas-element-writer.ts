@@ -46,7 +46,7 @@ function scaleToFit(
   return { width: Math.round(width * ratio), height: Math.round(height * ratio) };
 }
 
-function calculateAutoPlacement(
+export function calculateAutoPlacement(
   elements: CanvasElement[],
   assetWidth: number,
   assetHeight: number,
