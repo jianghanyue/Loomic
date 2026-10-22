@@ -166,7 +166,7 @@ export function createImageOpTools(deps: ToolDeps) {
     opTool(
       deps,
       "edit_image",
-      `Edit a canvas image from an instruction with Qwen-Image-Edit, e.g. recolour, change the subject, restyle${comfyNote}. Pass referenceElementId to use a second canvas image as the style or content reference.`,
+      `Edit a canvas image from an instruction with ${deps.comfy?.editModel === "flux2-klein-9b" ? "local FLUX.2 Klein 9B" : "Qwen-Image-Edit"}, e.g. recolour, change the subject, restyle${comfyNote}. Pass referenceElementId to use a second canvas image as the style or content reference.`,
       z.object({
         elementId,
         prompt: z.string().min(1).describe("What to change, as an instruction"),

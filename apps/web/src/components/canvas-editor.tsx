@@ -12,12 +12,17 @@ import { saveCanvas, uploadThumbnail } from "../lib/server-api";
 import { VideoCanvasElement } from "./canvas/video-canvas-element";
 import { isVideoUrl } from "../lib/canvas-elements";
 import { CanvasToolMenu } from "./canvas-tool-menu";
-import { normalizeCanvasElements } from "../lib/canvas-normalize";
+import { getCanvasFontString, normalizeCanvasElements } from "../lib/canvas-normalize";
+import { CANVAS_TEXT_DEFAULTS, shouldShowTextControls } from "../lib/canvas-text";
 import { observeContextMenus } from "../lib/excalidraw-zh";
 import { ErrorBoundary } from "./error-boundary";
 
 const Excalidraw = dynamic(
-  () => import("@excalidraw/excalidraw").then((mod) => mod.Excalidraw),
+  () => {
+    // Set before importing: font-face URLs are registered during initialization.
+    (window as Window & { EXCALIDRAW_ASSET_PATH?: string }).EXCALIDRAW_ASSET_PATH = "/excalidraw/";
+    return import("@excalidraw/excalidraw").then((mod) => mod.Excalidraw);
+  },
   { ssr: false },
 );
 
@@ -87,6 +92,7 @@ export function CanvasEditor({
   const canvasIdRef = useRef(canvasId);
   canvasIdRef.current = canvasId;
   const [excalidrawApi, setExcalidrawApi] = useState<any>(null);
+  const [textControlsVisible, setTextControlsVisible] = useState(false);
   const prevSelectedIdsRef = useRef<string>("");
   const onSelectionChangeRef = useRef(onSelectionChange);
   onSelectionChangeRef.current = onSelectionChange;
@@ -184,11 +190,20 @@ export function CanvasEditor({
 
     // Run normalization after Excalidraw has loaded fonts.
     // Store the handle so we can cancel on unmount to prevent memory leaks.
-    const idleHandle = ric(() => {
+    let cancelled = false;
+    const idleHandle = ric(async () => {
       try {
         const sceneElements = excalidrawApi.getSceneElements();
+        // Idle scheduling alone does not wait for fonts. Measuring a fallback
+        // font can resize labels incorrectly and persist the wrong dimensions.
+        await Promise.allSettled(sceneElements
+          .filter((el: any) => el.type === "text" && !el.isDeleted && el.text)
+          .map((el: any) => document.fonts.load(getCanvasFontString(el.fontSize, el.fontFamily), el.text)));
+        if (cancelled) return;
+        // Re-read after awaiting: edits or a canvas sync may have arrived.
+        const currentElements = excalidrawApi.getSceneElements();
         // Create mutable copies for normalization
-        const mutableElements = sceneElements.map((el: any) => ({ ...el }));
+        const mutableElements = currentElements.map((el: any) => ({ ...el }));
         const { changed } = normalizeCanvasElements(mutableElements);
 
         if (changed) {
@@ -206,7 +221,8 @@ export function CanvasEditor({
           const appState = excalidrawApi.getAppState();
           saveCanvas(accessTokenRef.current, canvasIdRef.current, {
             elements: mutableElements.filter((el: any) => !el.isDeleted),
-            appState: { viewBackgroundColor: appState.viewBackgroundColor, gridModeEnabled: appState.gridModeEnabled },
+            appState: { viewBackgroundColor: appState.viewBackgroundColor, gridModeEnabled: appState.gridModeEnabled,
+              currentItemFontFamily: appState.currentItemFontFamily, currentItemFontSize: appState.currentItemFontSize },
             files,
           }).catch((err: Error) => console.warn("[canvas-editor] normalization save failed:", err));
         }
@@ -220,11 +236,12 @@ export function CanvasEditor({
       // FULL REPLACE with empty content and silently wipe existing data.
       hydratedRef.current = true;
     });
-    return () => cic(idleHandle);
+    return () => { cancelled = true; cic(idleHandle); };
   }, [excalidrawApi]);
 
   const handleChange = useCallback(
     (elements: readonly any[], appState: any) => {
+      setTextControlsVisible(shouldShowTextControls(elements, appState));
       // Skip auto-save until Excalidraw has fully hydrated with initial data.
       // During initialization, onChange may fire with empty/partial elements
       // which would wipe the persisted canvas via FULL REPLACE.
@@ -258,6 +275,8 @@ export function CanvasEditor({
           appState: {
             viewBackgroundColor: appState.viewBackgroundColor,
             gridModeEnabled: appState.gridModeEnabled,
+            currentItemFontFamily: appState.currentItemFontFamily,
+            currentItemFontSize: appState.currentItemFontSize,
           },
           files,
         };
@@ -468,6 +487,8 @@ export function CanvasEditor({
         appState: {
           viewBackgroundColor: appState.viewBackgroundColor,
           gridModeEnabled: appState.gridModeEnabled,
+          currentItemFontFamily: appState.currentItemFontFamily,
+          currentItemFontSize: appState.currentItemFontSize,
         },
         files,
       };
@@ -568,13 +589,13 @@ export function CanvasEditor({
     <ErrorBoundary
       onError={(err) => console.error("[canvas-editor] render crashed:", err)}
     >
-      <div ref={containerRef} className="h-full w-full relative">
+      <div ref={containerRef} className="canvas-editor h-full w-full relative" data-text-controls={textControlsVisible}>
         <Excalidraw
           theme={resolvedTheme === "dark" ? "dark" : "light"}
           langCode="zh-CN"
           initialData={{
             elements: initialContent.elements as any,
-            appState: initialContent.appState as any,
+            appState: { ...CANVAS_TEXT_DEFAULTS, ...initialContent.appState } as any,
             files: inlineFiles as any,
           }}
           onChange={handleChange}

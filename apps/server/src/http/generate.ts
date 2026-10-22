@@ -10,7 +10,8 @@ import {
 } from "@loomic/shared";
 
 import { generateImage } from "../generation/image-generation.js";
-import { resolveImageProviderName } from "../generation/providers/registry.js";
+import { ImageOutputOptionsError, imageExtension, normalizeImageOutputOptions } from "../generation/image-output.js";
+import { getAvailableImageModels, resolveImageProviderName } from "../generation/providers/registry.js";
 import type { CreditService } from "../features/credits/credit-service.js";
 import { CreditServiceError } from "../features/credits/credit-service.js";
 import type { TierGuard } from "../features/credits/tier-guard.js";
@@ -26,6 +27,9 @@ const generateImageRequestSchema = z.object({
   model: z.string().optional(),
   aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:3", "3:4"]).optional(),
   quality: z.enum(["standard", "hd", "ultra"]).optional(),
+  outputFormat: z.enum(["png", "jpg", "webp"]).optional(),
+  background: z.enum(["auto", "opaque", "transparent"]).optional(),
+  inputImages: z.array(z.string()).optional(),
 });
 
 const generateVideoRequestSchema = z.object({
@@ -75,16 +79,22 @@ export async function registerGenerateRoutes(
       );
     }
 
-    const model = payload.model ?? "black-forest-labs/flux-kontext-pro";
+    const localModel = getAvailableImageModels().find((model) => model.provider === "comfyui");
+    const model = payload.model ?? localModel?.id ?? "black-forest-labs/flux-kontext-pro";
+    const quality: ImageQualityLevel = payload.quality ?? (model === localModel?.id ? "standard" : "hd");
 
     try {
+      const modelInfo = getAvailableImageModels().find((candidate) => candidate.id === model);
+      const output = normalizeImageOutputOptions(modelInfo ?? { id: model, displayName: model, description: "" }, {
+        ...(payload.outputFormat ? { outputFormat: payload.outputFormat } : {}),
+        ...(payload.background ? { background: payload.background } : {}),
+      });
       // ── Tier guard + credit checks ──
       const viewer = await options.viewerService.ensureViewer(user);
       let creditsCost = 0;
 
       if (options.creditService && options.tierGuard) {
         const sub = await options.creditService.getSubscription(viewer.workspace.id);
-        const quality: ImageQualityLevel = payload.quality ?? "hd";
         options.tierGuard.checkModelAccess(sub.plan, model);
         // Throws TierGuardError (resolution_not_allowed) if plan doesn't allow this quality
         options.tierGuard.checkResolution(sub.plan, quality);
@@ -105,7 +115,9 @@ export async function registerGenerateRoutes(
         prompt: payload.prompt,
         model,
         aspectRatio: payload.aspectRatio ?? "1:1",
-        ...(payload.quality ? { quality: payload.quality } : {}),
+        quality,
+        ...output,
+        ...(payload.inputImages?.length ? { inputImages: payload.inputImages } : {}),
       });
 
       // Download and persist to Supabase Storage
@@ -126,6 +138,9 @@ export async function registerGenerateRoutes(
         height: result.height,
       });
     } catch (error) {
+      if (error instanceof ImageOutputOptionsError) {
+        return reply.code(error.statusCode).send({ error: { code: error.code, message: error.message } });
+      }
       // Handle tier/credit errors
       if (error instanceof TierGuardError) {
         return reply.code(error.statusCode).send(
@@ -414,7 +429,7 @@ async function downloadAndUpload(
   }
   const buffer = Buffer.from(await response.arrayBuffer());
 
-  const ext = mimeType === "image/webp" ? "webp" : "png";
+  const ext = imageExtension(mimeType);
   const slug = prompt.slice(0, 40).replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
   const fileName = `gen-${slug}-${Date.now()}.${ext}`;
 

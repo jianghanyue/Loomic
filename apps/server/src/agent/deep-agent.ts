@@ -11,6 +11,8 @@ import type { ConnectionManager } from "../ws/connection-manager.js";
 import { createAgentBackend, type AgentBackendResult } from "./backends/index.js";
 import { LOOMIC_SYSTEM_PROMPT } from "./prompts/loomic-main.js";
 import { createVideoSubAgent } from "./sub-agents.js";
+import { resolveChatConnection } from "./model-connection.js";
+import { imageMessageMiddleware } from "./image-messages.js";
 import { createMainAgentTools } from "./tools/index.js";
 import type { PersistImageFn, SubmitImageJobFn } from "./tools/image-generate.js";
 import type { SubmitVideoJobFn } from "./tools/video-generate.js";
@@ -57,12 +59,10 @@ export function createLoomicDeepAgent(options: {
   const backendResult =
     options.backendResult ?? createAgentBackend(options.env, options.canvasId);
 
-  applyOpenAICompatEnv(options.env);
-
   const modelSpec = options.model ?? createDefaultModelSpecifier(options.env);
   const resolvedModel =
     typeof modelSpec === "string"
-      ? createStreamingChatModel(modelSpec)
+      ? createStreamingChatModel(modelSpec, options.env)
       : modelSpec;
 
   const createUserClient =
@@ -103,6 +103,7 @@ export function createLoomicDeepAgent(options: {
   }
 
   return createDeepAgent({
+    middleware: [imageMessageMiddleware],
     backend: backendResult.factory,
     ...(options.checkpointer ? { checkpointer: options.checkpointer } : {}),
     model: resolvedModel,
@@ -133,13 +134,13 @@ export function createLoomicDeepAgent(options: {
  * - `google` — uses ChatGoogleGenerativeAI (Google AI Studio, API Key) or
  *   ChatVertexAI (Vertex AI, service account) depending on available config.
  */
-function createStreamingChatModel(specifier: string): BaseLanguageModel {
+export function createStreamingChatModel(specifier: string, env: ServerEnv): BaseLanguageModel {
   const colonIdx = specifier.indexOf(":");
   let provider = colonIdx > 0 ? specifier.slice(0, colonIdx) : "openai";
   let modelName = colonIdx > 0 ? specifier.slice(colonIdx + 1) : specifier;
 
-  const hasGoogleApiKey = !!process.env.GOOGLE_API_KEY;
-  const hasVertexAI = !!(process.env.GOOGLE_VERTEX_PROJECT && process.env.GOOGLE_VERTEX_LOCATION);
+  const hasGoogleApiKey = !!env.googleApiKey;
+  const hasVertexAI = !!(env.googleVertexProject && env.googleVertexLocation);
   const hasGoogle = hasGoogleApiKey || hasVertexAI;
 
   // Provider availability fallback
@@ -148,7 +149,7 @@ function createStreamingChatModel(specifier: string): BaseLanguageModel {
     provider = "openai";
     modelName = DEFAULT_AGENT_MODEL;
   }
-  if (provider === "openai" && !process.env.OPENAI_API_KEY && hasGoogle) {
+  if (provider === "openai" && !env.openAIApiKey && hasGoogle) {
     console.warn(`[model] OpenAI unavailable (no OPENAI_API_KEY), falling back to Google for: ${specifier}`);
     provider = "google";
     modelName = DEFAULT_GOOGLE_AGENT_MODEL;
@@ -158,8 +159,8 @@ function createStreamingChatModel(specifier: string): BaseLanguageModel {
     case "google":
       // Prefer Vertex AI (service account) when configured; fall back to Developer API key
       if (hasVertexAI) {
-        const vertexProject = process.env.GOOGLE_VERTEX_PROJECT!;
-        const vertexLocation = process.env.GOOGLE_VERTEX_LOCATION!;
+        const vertexProject = env.googleVertexProject!;
+        const vertexLocation = env.googleVertexLocation!;
         console.log(`[model] Using Vertex AI for: ${modelName} (project=${vertexProject}, location=${vertexLocation})`);
         return new ChatVertexAI({
           model: modelName,
@@ -170,24 +171,32 @@ function createStreamingChatModel(specifier: string): BaseLanguageModel {
       }
       return new ChatGoogleGenerativeAI({
         model: modelName,
-        apiKey: process.env.GOOGLE_API_KEY!,
+        apiKey: env.googleApiKey!,
         streaming: true,
         thinkingConfig: {
           includeThoughts: true,
           thinkingBudget: -1, // dynamic — let the model decide
         },
       });
+    case "dashscope":
     case "openai":
-    default:
+    default: {
+      const connection = resolveChatConnection(`${provider}:${modelName}`, env);
       return new ChatOpenAI({
         model: modelName,
+        apiKey: connection.apiKey,
+        configuration: { baseURL: connection.baseURL },
         streaming: true,
         streamUsage: false,
+        // Preserve the previous non-reasoning chat route's latency budget with
+        // the lowest supported effort (6.1 Sol does not accept `none`).
+        ...(modelName === "gpt-6.1-sol" ? { reasoning: { effort: "low" as const } } : {}),
         // GPT-6 tool calling requires Responses (Astra always; Sol/Luna when reasoning).
         ...(modelName.startsWith("gpt-6-") || modelName.startsWith("gpt-6.")
           ? { useResponsesApi: true }
           : {}),
       });
+    }
   }
 }
 

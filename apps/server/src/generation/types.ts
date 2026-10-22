@@ -8,6 +8,9 @@ export interface ModelInfo {
   description: string;
   /** URL to the model owner's avatar/icon */
   iconUrl?: string;
+  /** Explicitly advertised image output capabilities; omitted means unverified. */
+  outputFormats?: readonly OutputFormat[];
+  supportsTransparentBackground?: boolean;
 }
 
 /**
@@ -19,6 +22,7 @@ export interface ModelInfo {
 export type ImageQuality = "standard" | "hd" | "ultra";
 
 export type OutputFormat = "png" | "jpg" | "webp";
+export type ImageBackground = "auto" | "opaque" | "transparent";
 
 export interface ImageGenerateParams {
   prompt: string;
@@ -29,6 +33,8 @@ export interface ImageGenerateParams {
   quality?: ImageQuality;
   /** Output format preference */
   outputFormat?: OutputFormat;
+  /** PNG alone does not imply transparency. */
+  background?: ImageBackground;
   metadata?: Record<string, unknown>;
 }
 

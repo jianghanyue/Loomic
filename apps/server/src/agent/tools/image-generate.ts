@@ -4,6 +4,8 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 
 import { generateImage } from "../../generation/image-generation.js";
+import { normalizeImageOutputOptions } from "../../generation/image-output.js";
+import type { ImageBackground, OutputFormat } from "../../generation/types.js";
 import {
   getAvailableImageModels,
   resolveImageProviderName,
@@ -23,7 +25,7 @@ function buildImageGenerateSchema(models: AvailableModel[]) {
     : modelIds[0] ?? DEFAULT_MODEL;
 
   const modelDescription = models.length
-    ? `Model to use. Available:\n${models.map((m) => `- ${m.id}: ${m.displayName} — ${m.description}`).join("\n")}`
+    ? `Model to use. Available:\n${models.map((m) => `- ${m.id}: ${m.displayName} — ${m.description}. Native transparency: ${m.supportsTransparentBackground ? "yes" : "not supported/verified"}${m.outputFormats ? `; output formats: ${m.outputFormats.join(", ")}` : ""}`).join("\n")}`
     : "Model identifier (no providers currently registered)";
 
   // z.enum needs [string, ...string[]], but we may have 0 models at test time.
@@ -59,7 +61,11 @@ function buildImageGenerateSchema(models: AvailableModel[]) {
     outputFormat: z
       .enum(["png", "jpg", "webp"])
       .optional()
-      .describe("Output image format. PNG for transparency, JPG for photos, WebP for web."),
+      .describe("File format: png, jpg, or webp. Uses the model default when omitted, or PNG when transparent. PNG alone does NOT request transparency. For transparent assets also set background=transparent; JPG cannot store alpha."),
+    background: z
+      .enum(["auto", "opaque", "transparent"])
+      .optional()
+      .describe("Background mode, independent of file format. For transparent/cutout/sticker assets use transparent AND a model advertising native transparency (GPT Image 2.5 Sunburst/Flare). Defaults to PNG if transparent and outputFormat omitted. Otherwise provider default. Never draw a checkerboard as fake transparency; preserve alpha in edits when requested."),
     inputImages: z
       .array(z.string())
       .optional()
@@ -97,7 +103,8 @@ type ImageGenerateInput = {
   model: string;
   aspectRatio?: string;
   quality?: string;
-  outputFormat?: string;
+  outputFormat?: OutputFormat;
+  background?: ImageBackground;
   inputImages?: string[];
   placementX?: number;
   placementY?: number;
@@ -140,6 +147,8 @@ export type SubmitImageJobFn = (input: {
   aspectRatio: string;
   inputImages?: string[];
   quality?: string;
+  outputFormat?: OutputFormat;
+  background?: ImageBackground;
 }) => Promise<{
   jobId: string;
   elementId?: string;
@@ -155,11 +164,20 @@ export async function runImageGenerate(
   persistImage?: PersistImageFn,
   submitImageJob?: SubmitImageJobFn,
   attachmentMap?: Record<string, string>,
+  availableModels: AvailableModel[] = getAvailableImageModels(),
 ): Promise<ImageGenerateResult> {
   const t0 = Date.now();
   const lap = (label: string, extra?: Record<string, unknown>) => {
     console.log(`[generate_image] ${label} +${Date.now() - t0}ms`, extra ? JSON.stringify(extra) : "");
   };
+  try {
+    const model = availableModels.find((candidate) => candidate.id === input.model);
+    if (!model) throw new Error(`No provider registered for image model: ${input.model}`);
+    input = { ...input, ...normalizeImageOutputOptions(model, input) };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Invalid image output options";
+    return { summary: `Image generation not submitted: ${message}`, error: message };
+  }
 
   // Resolve assetId references in inputImages to base64 data URIs
   if (input.inputImages?.length && attachmentMap) {
@@ -202,6 +220,8 @@ export async function runImageGenerate(
         model: input.model,
         aspectRatio: input.aspectRatio ?? "1:1",
         ...(input.quality ? { quality: input.quality } : {}),
+        ...(input.outputFormat ? { outputFormat: input.outputFormat } : {}),
+        ...(input.background ? { background: input.background } : {}),
         ...(input.inputImages ? { inputImages: input.inputImages } : {}),
       });
 
@@ -222,7 +242,7 @@ export async function runImageGenerate(
       lap("job_complete", { jobId: jobResult.jobId });
 
       const result: ImageGenerateResult = {
-        summary: `Generated image (${jobResult.width ?? 0}x${jobResult.height ?? 0}) via ${input.model}`,
+        summary: `Generated image (${jobResult.width ?? 0}x${jobResult.height ?? 0}) via ${input.model}${input.background === "transparent" ? ` with transparent background (${jobResult.mimeType})` : ""}`,
         title: input.title,
         ...(jobResult.elementId != null ? { elementId: jobResult.elementId } : {}),
         imageUrl: jobResult.imageUrl ?? "",
@@ -258,6 +278,7 @@ export async function runImageGenerate(
       ...(input.aspectRatio ? { aspectRatio: input.aspectRatio } : {}),
       ...(input.quality ? { quality: input.quality as any } : {}),
       ...(input.outputFormat ? { outputFormat: input.outputFormat as any } : {}),
+      ...(input.background ? { background: input.background } : {}),
       ...(input.inputImages?.length ? { inputImages: input.inputImages } : {}),
     });
     lap("direct_generate_done", { width: result.width, height: result.height });
@@ -273,7 +294,7 @@ export async function runImageGenerate(
     }
 
     const directResult: ImageGenerateResult = {
-      summary: `Generated image (${result.width}x${result.height}) via ${input.model}`,
+      summary: `Generated image (${result.width}x${result.height}) via ${input.model}${input.background === "transparent" ? ` with transparent background (${result.mimeType})` : ""}`,
       title: input.title,
       imageUrl,
       mimeType: result.mimeType,
@@ -320,6 +341,7 @@ export function createImageGenerateTool(deps?: {
         deps?.persistImage,
         deps?.submitImageJob,
         attachmentMap,
+        models,
       );
     },
     {

@@ -47,11 +47,11 @@
     "build": "node ../../scripts/validate-foundation-app.mjs build",
     "predev": "pnpm --filter @loomic/shared --filter @loomic/textile build",
     "dev": "node --watch --env-file=../../.env.local --import tsx ./src/server.ts & WORKER_ID=w1 node --watch --env-file=../../.env.local --import tsx ./src/worker.ts & wait",
-    "dev:server": "node --watch --env-file=../../.env.local --import tsx ./src/server.ts",
-    "dev:worker": "node --watch --env-file=../../.env.local --import tsx ./src/worker.ts",
+    "dev:server": "node --watch --env-file=../../.env.local --import ../../scripts/load-local-env.mjs --import tsx ./src/server.ts",
+    "dev:worker": "node --watch --env-file=../../.env.local --import ../../scripts/load-local-env.mjs --import tsx ./src/worker.ts",
     "dev:workers:2": "WORKER_ID=w1 node --watch --env-file=../../.env.local --import tsx ./src/worker.ts & WORKER_ID=w2 node --watch --env-file=../../.env.local --import tsx ./src/worker.ts & wait",
     "dev:workers:3": "WORKER_ID=w1 node --watch --env-file=../../.env.local --import tsx ./src/worker.ts & WORKER_ID=w2 node --watch --env-file=../../.env.local --import tsx ./src/worker.ts & WORKER_ID=w3 node --watch --env-file=../../.env.local --import tsx ./src/worker.ts & wait",
-    "worker": "node --env-file=../../.env.local --import tsx ./src/worker.ts",
+    "worker": "node --env-file=../../.env.local --import ../../scripts/load-local-env.mjs --import tsx ./src/worker.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   }

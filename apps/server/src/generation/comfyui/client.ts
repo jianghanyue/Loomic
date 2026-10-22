@@ -26,6 +26,10 @@ export class ComfyError extends Error {
 }
 
 export type ComfyClient = {
+  opsProfile?: "layerstyle";
+  modelsDir?: string;
+  getObjectInfo?(): Promise<Record<string, any>>;
+  editModel?: "flux2-klein-9b" | "qwen-image-2.1";
   /** Upload an input image; returns the value to put in a LoadImage node. */
   uploadImage(buffer: Buffer, name: string): Promise<string>;
   /** Queue `graph` and return the images produced by node `outputNode`. */
@@ -33,7 +37,10 @@ export type ComfyClient = {
 };
 
 export type ComfyClientOptions = {
+  opsProfile?: "layerstyle";
+  modelsDir?: string;
   baseUrl: string;
+  editModel?: "flux2-klein-9b" | "qwen-image-2.1";
   /** Overall wait per prompt. Default 5 minutes. */
   timeoutMs?: number;
   pollMs?: number;
@@ -59,6 +66,14 @@ export function createComfyClient(opts: ComfyClientOptions): ComfyClient {
   }
 
   return {
+    ...(opts.opsProfile ? { opsProfile: opts.opsProfile } : {}),
+    ...(opts.modelsDir ? { modelsDir: opts.modelsDir } : {}),
+    async getObjectInfo() {
+      const res = await request("/object_info", { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) throw new ComfyError("comfyui_unreachable", `ComfyUI inventory returned HTTP ${res.status}`);
+      return await res.json() as Record<string, any>;
+    },
+    ...(opts.editModel ? { editModel: opts.editModel } : {}),
     async uploadImage(buffer, name) {
       const body = new FormData();
       body.append("image", new Blob([new Uint8Array(buffer)]), name);
@@ -95,11 +110,11 @@ export function createComfyClient(opts: ComfyClientOptions): ComfyClient {
           : undefined;
         if (hist) {
           const messages: [string, any][] = hist.status?.messages ?? [];
-          const err = messages.find((m) => m[0] === "execution_error");
+          const err = messages.find((m) => m[0] === "execution_error" || m[0] === "execution_interrupted");
           if (err)
             throw new ComfyError(
               "comfyui_failed",
-              `ComfyUI execution failed: ${err[1]?.exception_message ?? "unknown error"}`,
+              `ComfyUI execution failed: ${err[1]?.exception_message ?? (err[0] === "execution_interrupted" ? "generation was interrupted" : "unknown error")}`,
             );
           const images: ImageRef[] = hist.outputs?.[outputNode]?.images ?? [];
           if (images.length > 0) return Promise.all(images.map(download));

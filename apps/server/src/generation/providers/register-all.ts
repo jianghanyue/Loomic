@@ -6,6 +6,7 @@
  * source of truth so that adding a new provider only requires a change here.
  */
 import type { ServerEnv } from "../../config/env.js";
+import { ComfyUIImageProvider } from "./comfyui-image.js";
 import { GoogleImageProvider } from "./google-image.js";
 import { GoogleVertexImageProvider } from "./google-vertex-image.js";
 import { GoogleVertexVideoProvider } from "./google-vertex-video.js";
@@ -25,6 +26,14 @@ import { VolcesImageProvider } from "./volces-image.js";
  * ensuring every process gets the full set.
  */
 export function registerAllProviders(env: ServerEnv): void {
+  // Register local generation first so it is the fallback when no model was selected.
+  if (env.comfyuiBaseUrl) {
+    registerImageProvider(new ComfyUIImageProvider({
+      baseUrl: env.comfyuiBaseUrl,
+      ...(env.comfyuiTimeoutMs ? { timeoutMs: env.comfyuiTimeoutMs } : {}),
+    }));
+  }
+
   // Metaso — MiniMax H3 V2 video
   if (env.metasoApiKey) {
     registerVideoProvider(

@@ -26,6 +26,8 @@ import {
 } from "../features/credits/tier-guard.js";
 import type { ViewerService } from "../features/bootstrap/ensure-user-foundation.js";
 import type { RequestAuthenticator } from "../supabase/user.js";
+import { ImageOutputOptionsError, imageOutputJobFields, normalizeImageOutputOptions } from "../generation/image-output.js";
+import { getAvailableImageModels } from "../generation/providers/registry.js";
 
 export async function registerJobRoutes(
   app: FastifyInstance,
@@ -48,6 +50,11 @@ export async function registerJobRoutes(
 
       // Credit checks (skip if credit system not configured)
       const model = payload.model ?? "black-forest-labs/flux-kontext-pro";
+      const modelInfo = getAvailableImageModels().find((candidate) => candidate.id === model);
+      const output = normalizeImageOutputOptions(modelInfo ?? { id: model, displayName: model, description: "" }, {
+        ...(payload.output_format ? { outputFormat: payload.output_format } : {}),
+        ...(payload.background ? { background: payload.background } : {}),
+      });
       let creditsCost = 0;
       let quality: ImageQualityLevel = payload.quality ?? "hd";
 
@@ -83,6 +90,8 @@ export async function registerJobRoutes(
             ? { aspect_ratio: payload.aspect_ratio }
             : {}),
           quality,
+          ...imageOutputJobFields(output),
+          ...(payload.input_images ? { input_images: payload.input_images } : {}),
         },
       });
 
@@ -265,6 +274,9 @@ function sendJobError(
   reply: FastifyReply,
   fallbackCode: JobErrorFallbackCode,
 ) {
+  if (error instanceof ImageOutputOptionsError) {
+    return reply.code(error.statusCode).send({ error: { code: error.code, message: error.message } });
+  }
   if (error instanceof JobServiceError) {
     return reply.code(error.statusCode).send(
       applicationErrorResponseSchema.parse({

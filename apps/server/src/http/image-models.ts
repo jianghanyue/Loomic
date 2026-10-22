@@ -45,6 +45,8 @@ export async function registerImageModelRoutes(
       description: m.description,
       iconUrl: m.iconUrl,
       provider: m.provider,
+      outputFormats: m.outputFormats,
+      supportsTransparentBackground: m.supportsTransparentBackground ?? false,
       accessible: userPlan !== null && canAccessModel(userPlan, m.id),
       creditCost: getImageCreditCost(m.id, "hd"),
       minTier: MODEL_MIN_TIER[m.id] ?? "pro",

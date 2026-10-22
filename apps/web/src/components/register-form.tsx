@@ -11,6 +11,7 @@ import { Label } from "./ui/label";
 import { Separator } from "./ui/separator";
 import { fetchViewer } from "../lib/server-api";
 import { getSupabaseBrowserClient } from "../lib/supabase-browser";
+import { LocalPreviewNotice } from "./local-preview-notice";
 
 const stagger = {
   hidden: {},
@@ -30,6 +31,10 @@ export function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  if (process.env.NEXT_PUBLIC_LOOMIC_PREVIEW === "true") {
+    return <LocalPreviewNotice />;
+  }
 
   async function bootstrapWorkspace(accessToken: string) {
     try {

@@ -11,12 +11,12 @@ import {
   createImageOpContext,
 } from "../features/image-ops/context.js";
 import {
-  COMFY_ONLY_OPS,
   IMAGE_OPS,
   type ImageOpInput,
   runImageOp,
 } from "../features/image-ops/image-ops.js";
 import type { RequestAuthenticator } from "../supabase/user.js";
+import { imageOpCapabilities } from "../features/image-ops/capabilities.js";
 
 const regionSchema = z.object({
   x: z.number().min(0).max(1),
@@ -50,6 +50,7 @@ const STATUS_BY_CODE: Record<string, number> = {
   comfyui_rejected: 502,
   comfyui_failed: 502,
   comfyui_timeout: 504,
+  model_unavailable: 503,
 };
 
 export async function registerImageOpRoutes(
@@ -57,7 +58,7 @@ export async function registerImageOpRoutes(
   options: {
     auth: RequestAuthenticator;
     createUserClient: (accessToken: string) => unknown;
-    env: Pick<ServerEnv, "comfyuiBaseUrl" | "comfyuiTimeoutMs">;
+    env: Pick<ServerEnv, "comfyuiBaseUrl" | "comfyuiTimeoutMs" | "comfyuiEditModel" | "comfyuiOpsProfile" | "comfyuiModelsDir">;
   },
 ) {
   /** Which operations can run here, so the UI can disable the rest. */
@@ -72,13 +73,7 @@ export async function registerImageOpRoutes(
             message: "Missing or invalid bearer token.",
           },
         });
-    const comfyui = Boolean(options.env.comfyuiBaseUrl);
-    return reply.send({
-      comfyui,
-      ops: Object.fromEntries(
-        IMAGE_OPS.map((op) => [op, comfyui || !COMFY_ONLY_OPS.has(op)]),
-      ),
-    });
+    return reply.send(await imageOpCapabilities(comfyFromEnv(options.env)));
   });
 
   app.post<{ Params: { canvasId: string } }>(

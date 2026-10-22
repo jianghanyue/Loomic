@@ -363,6 +363,16 @@
   display: none !important;
 }
 
+/* Text is editable content, not an image: expose native font/size controls when
+   typing or selecting it. Excalidraw handles measurement, binding and undo. */
+.canvas-editor[data-text-controls="true"] .excalidraw .App-menu_top__left {
+  display: flex !important;
+  margin-top: 56px;
+}
+.canvas-editor[data-text-controls="true"] .excalidraw .App-menu_top__left > :not(.selected-shape-actions) {
+  display: none !important;
+}
+
 /* Hide keyboard shortcut labels on tools */
 .excalidraw .ToolIcon__keybinding {
   display: none !important;

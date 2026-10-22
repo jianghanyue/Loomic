@@ -8,6 +8,7 @@ import type {
   ModelInfo,
 } from "../types.js";
 import { GenerationError, fetchAsBase64 } from "../utils.js";
+import { normalizeImageOutputOptions } from "../image-output.js";
 
 const MODEL_PREFIX = "openai-official/";
 const ICON_OPENAI = "https://github.com/openai.png";
@@ -19,18 +20,24 @@ const OPENAI_IMAGE_MODELS: readonly ModelInfo[] = [
     description:
       "OpenAI's highest-quality image generation and precise multi-image editing.",
     iconUrl: ICON_OPENAI,
+    outputFormats: ["png", "jpg", "webp"],
+    supportsTransparentBackground: true,
   },
   {
     id: `${MODEL_PREFIX}gpt-image-2.5-flare`,
     displayName: "GPT Image 2.5 Flare",
     description: "Fast, high-quality image generation and multi-image editing.",
     iconUrl: ICON_OPENAI,
+    outputFormats: ["png", "jpg", "webp"],
+    supportsTransparentBackground: true,
   },
   {
     id: `${MODEL_PREFIX}gpt-image-2`,
     displayName: "GPT Image 2",
     description: "Image generation and editing with flexible image sizes.",
     iconUrl: ICON_OPENAI,
+    outputFormats: ["png", "jpg", "webp"],
+    supportsTransparentBackground: false,
   },
 ];
 
@@ -72,6 +79,8 @@ export class OpenAIImageProvider implements ImageProvider {
       );
     }
 
+    const output = normalizeImageOutputOptions(this.models.find((candidate) => candidate.id === params.model)!, params);
+    const outputFormat = output.outputFormat === "jpg" ? "jpeg" : output.outputFormat ?? "png";
     const size = imageSize(params);
     const quality =
       params.quality === "standard"
@@ -87,7 +96,8 @@ export class OpenAIImageProvider implements ImageProvider {
         // The installed SDK types predate GPT Image 2's flexible size support.
         size: size as "1024x1024",
         quality: quality as "low" | "medium" | "high",
-        output_format: "png" as const,
+        output_format: outputFormat as "png" | "jpeg" | "webp",
+        ...(output.background ? { background: output.background } : {}),
         n: 1,
       };
       const response = params.inputImages?.length
@@ -120,7 +130,8 @@ export class OpenAIImageProvider implements ImageProvider {
           "OpenAI returned no image data",
         );
       }
-      const metadata = await sharp(Buffer.from(base64, "base64")).metadata();
+      const buffer = Buffer.from(base64, "base64");
+      const metadata = await sharp(buffer).metadata();
       if (!metadata.width || !metadata.height) {
         throw new GenerationError(
           this.name,
@@ -128,9 +139,19 @@ export class OpenAIImageProvider implements ImageProvider {
           "OpenAI returned image data without dimensions",
         );
       }
+      if (metadata.format !== outputFormat) {
+        throw new GenerationError(this.name, "invalid_output_format", `Requested ${outputFormat}, but OpenAI returned ${metadata.format}.`);
+      }
+      if (output.background === "transparent") {
+        const stats = metadata.hasAlpha ? await sharp(buffer).stats() : undefined;
+        if (!stats || stats.channels.at(-1)!.min === 255) {
+          throw new GenerationError(this.name, "transparency_missing", "Transparent background was requested, but the returned image has no transparent pixels.");
+        }
+      }
+      const mimeType = `image/${outputFormat}`;
       return {
-        url: `data:image/png;base64,${base64}`,
-        mimeType: "image/png",
+        url: `data:${mimeType};base64,${base64}`,
+        mimeType,
         width: metadata.width,
         height: metadata.height,
       };

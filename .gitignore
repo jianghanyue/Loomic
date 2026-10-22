@@ -14,6 +14,8 @@
 **/.next/
 /out/
 apps/web/out/
+# Generated from the installed Excalidraw package by next.config.ts.
+apps/web/public/excalidraw/fonts/
 supabase/.temp/
 
 # production

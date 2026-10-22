@@ -1,6 +1,8 @@
 // @credits-system — Image generation executor: applies watermark for free-tier users
 import { registerExecutor, type ExecutorContext } from "../job-executor.js";
 import { generateImage } from "../../../generation/image-generation.js";
+import { imageExtension } from "../../../generation/image-output.js";
+import type { ImageBackground, OutputFormat } from "../../../generation/types.js";
 import { resolveImageProviderName } from "../../../generation/providers/registry.js";
 import { applyWatermark } from "../../credits/watermark.js";
 
@@ -34,6 +36,8 @@ registerExecutor("image_generation", async (jobId, _rawPayload, ctx: ExecutorCon
     title?: string;
     input_images?: string[];
     quality?: ImageQualityLevel;
+    output_format?: OutputFormat;
+    background?: ImageBackground;
   };
 
   if (!payload.prompt) throw new Error(`Job ${jobId} has no prompt in payload`);
@@ -71,6 +75,8 @@ registerExecutor("image_generation", async (jobId, _rawPayload, ctx: ExecutorCon
         ...(payload.aspect_ratio !== undefined ? { aspectRatio: payload.aspect_ratio } : {}),
         ...(payload.input_images?.length ? { inputImages: payload.input_images } : {}),
         ...(payload.quality ? { quality: payload.quality } : {}),
+        ...(payload.output_format ? { outputFormat: payload.output_format } : {}),
+        ...(payload.background ? { background: payload.background } : {}),
       });
     } catch (genError) {
       const detail = genError instanceof Error ? genError.message : String(genError);
@@ -112,7 +118,7 @@ registerExecutor("image_generation", async (jobId, _rawPayload, ctx: ExecutorCon
 
     // Upload to Supabase Storage under the project-assets bucket
     const timestamp = Date.now();
-    const objectPath = `${workspaceId}/generated/${timestamp}-${jobId}.png`;
+    const objectPath = `${workspaceId}/generated/${timestamp}-${jobId}.${imageExtension(generated.mimeType)}`;
 
     const { error: uploadError } = await admin.storage
       .from("project-assets")
@@ -148,15 +154,16 @@ registerExecutor("image_generation", async (jobId, _rawPayload, ctx: ExecutorCon
 
     lap("asset_record_done");
 
-    // Generate a public URL for the result consumer
-    const { data: urlData } = admin.storage
+    // The locally configured project-assets bucket is private.
+    const { data: urlData, error: signError } = await admin.storage
       .from("project-assets")
-      .getPublicUrl(objectPath);
+      .createSignedUrl(objectPath, 3600);
+    if (signError || !urlData?.signedUrl) throw new Error("Could not sign the generated image URL.");
 
     lap("total");
     return {
       asset_id: (assetRow as { id: string }).id,
-      signed_url: urlData.publicUrl,
+      signed_url: urlData.signedUrl,
       object_path: objectPath,
       width: generated.width,
       height: generated.height,

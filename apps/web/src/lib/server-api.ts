@@ -221,6 +221,7 @@ export type ImageOpName =
 export type ImageOpCapabilities = {
   comfyui: boolean;
   ops: Record<ImageOpName, boolean>;
+  details?: Partial<Record<ImageOpName, { available: boolean; backend: string; reason?: string }>>;
 };
 
 export async function fetchImageOpCapabilities(
@@ -474,10 +475,12 @@ export type ImageModelInfo = {
   minTier?: string;
 };
 
-export async function fetchImageModels(): Promise<{
+export async function fetchImageModels(accessToken?: string): Promise<{
   models: ImageModelInfo[];
 }> {
-  const response = await fetch(`${getServerBaseUrl()}/api/image-models`);
+  const response = await fetch(`${getServerBaseUrl()}/api/image-models`, {
+    ...(accessToken ? { headers: { Authorization: `Bearer ${accessToken}` } } : {}),
+  });
   if (!response.ok) {
     throw new Error(`Failed to fetch image models: ${response.status}`);
   }

@@ -9,6 +9,7 @@ import type { VideoModelInfo } from "../lib/server-api";
 import { fetchImageModels, fetchVideoModels } from "../lib/server-api";
 import { useImageModelPreference } from "../hooks/use-image-model-preference";
 import { useVideoModelPreference } from "../hooks/use-video-model-preference";
+import { useAuth } from "../lib/auth-context";
 
 export function ImageModelPreferencePopover({
   open,
@@ -20,6 +21,7 @@ export function ImageModelPreferencePopover({
   anchorRef: React.RefObject<HTMLElement | null>;
 }) {
   const { preference, setMode, toggleModel } = useImageModelPreference();
+  const { session } = useAuth();
   const [models, setModels] = useState<ImageModelInfo[]>([]);
   const [activeTab, setActiveTab] = useState<"image" | "video">("image");
   const videoPreference = useVideoModelPreference();
@@ -29,13 +31,13 @@ export function ImageModelPreferencePopover({
 
   useEffect(() => {
     if (!open) return;
-    fetchImageModels()
+    fetchImageModels(session?.access_token)
       .then((data) => setModels(data.models))
       .catch(() => {});
     fetchVideoModels()
       .then((data) => setVideoModels(data.models))
       .catch(() => {});
-  }, [open]);
+  }, [open, session?.access_token]);
 
   // Calculate position — auto-detect direction based on available space
   useLayoutEffect(() => {

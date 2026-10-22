@@ -159,6 +159,15 @@ export async function insertImagesBeside(
       created: Date.now(),
     };
     const width = Math.round((displayHeight * info.width) / info.height);
+    // Repeated edits must not cover a previous result beside the same source.
+    let blocker: CanvasElement | undefined;
+    while ((blocker = state.elements.find((other) =>
+      !other.isDeleted && Number(other.width) > 0 && Number(other.height) > 0 &&
+      x < Number(other.x) + Number(other.width) + GAP && x + width + GAP > Number(other.x) &&
+      y < Number(other.y) + Number(other.height) && y + displayHeight > Number(other.y)
+    ))) {
+      x = Number(blocker.x) + Number(blocker.width) + GAP;
+    }
     const element: CanvasElement = {
       ...createElementBase(),
       type: "image",

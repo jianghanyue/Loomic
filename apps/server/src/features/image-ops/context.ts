@@ -13,16 +13,19 @@ const ASSETS_BUCKET = "project-assets";
 let shared: { key: string; client: ComfyClient } | undefined;
 
 export function comfyFromEnv(
-  env: Pick<ServerEnv, "comfyuiBaseUrl" | "comfyuiTimeoutMs">,
+  env: Pick<ServerEnv, "comfyuiBaseUrl" | "comfyuiTimeoutMs" | "comfyuiEditModel" | "comfyuiOpsProfile" | "comfyuiModelsDir">,
 ): ComfyClient | undefined {
   if (!env.comfyuiBaseUrl) return undefined;
-  const key = `${env.comfyuiBaseUrl}|${env.comfyuiTimeoutMs ?? ""}`;
+  const key = `${env.comfyuiBaseUrl}|${env.comfyuiTimeoutMs ?? ""}|${env.comfyuiEditModel ?? ""}|${env.comfyuiOpsProfile ?? ""}|${env.comfyuiModelsDir ?? ""}`;
   if (shared?.key !== key) {
     shared = {
       key,
       client: createComfyClient({
         baseUrl: env.comfyuiBaseUrl,
         ...(env.comfyuiTimeoutMs ? { timeoutMs: env.comfyuiTimeoutMs } : {}),
+        ...(env.comfyuiEditModel ? { editModel: env.comfyuiEditModel } : {}),
+        ...(env.comfyuiOpsProfile ? { opsProfile: env.comfyuiOpsProfile } : {}),
+        ...(env.comfyuiModelsDir ? { modelsDir: env.comfyuiModelsDir } : {}),
       }),
     };
   }
@@ -53,7 +56,8 @@ export function createImageOpContext(opts: {
         upsert: false,
       });
       if (error) return undefined;
-      return bucket.getPublicUrl(path).data?.publicUrl as string | undefined;
+      const signed = await bucket.createSignedUrl(path, 3600);
+      return signed.error ? undefined : signed.data?.signedUrl;
     },
   };
 }

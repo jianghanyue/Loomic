@@ -3,18 +3,13 @@
 // result(s) beside the original. Shared by the agent tools and the HTTP route.
 
 import sharp from "sharp";
+import { operationWorkflows } from "../../generation/comfyui/operation-workflows.js";
+import { imageOpCapabilities } from "./capabilities.js";
 
 import {
   type ComfyClient,
   ComfyError,
 } from "../../generation/comfyui/client.js";
-import {
-  cutoutGraph,
-  editGraph,
-  eraseGraph,
-  layersGraph,
-  upscaleGraph,
-} from "../../generation/comfyui/workflows.js";
 import {
   CANVAS_IMAGE_MAX_PX,
   type CanvasClient,
@@ -74,7 +69,7 @@ export type ImageOpContext = {
   client: CanvasClient;
   canvasId: string;
   comfy?: ComfyClient | undefined;
-  /** Store a full-size result outside the canvas; returns a public URL. */
+  /** Store a full-size result outside the canvas; returns an accessible signed URL. */
   storeOriginal?: (buffer: Buffer, name: string) => Promise<string | undefined>;
 };
 
@@ -90,6 +85,10 @@ export async function runImageOp(
   ctx: ImageOpContext,
   input: ImageOpInput,
 ): Promise<ImageOpResult> {
+  if (ctx.comfy?.opsProfile && !(input.op === "remove_background" && input.mode === "color")) {
+    const caps = await imageOpCapabilities(ctx.comfy);
+    if (!caps.ops[input.op]) throw new CanvasError("model_unavailable", caps.details[input.op].reason ?? "模型不可用");
+  }
   const state = await loadCanvas(ctx.client, ctx.canvasId);
   const { element, buffer } = await readCanvasImage(
     ctx.client,
@@ -139,7 +138,7 @@ async function execute(
       const mode = input.mode ?? "auto";
       if (mode === "model" || (mode === "auto" && ctx.comfy)) {
         const [out] = await runComfy(ctx, source, (image) =>
-          cutoutGraph(image),
+          operationWorkflows(ctx.comfy!).cutout(image),
         );
         return {
           images: [
@@ -168,7 +167,7 @@ async function execute(
       let method: string;
       if (ctx.comfy) {
         [out] = (await runComfy(ctx, source, (image) =>
-          upscaleGraph(image, w, h, factor),
+          operationWorkflows(ctx.comfy!).upscale(image, w, h, factor),
         )) as [Buffer];
         method = "model";
       } else {
@@ -176,6 +175,18 @@ async function execute(
         method = "resize";
       }
       const [tw, th] = [Math.round(w * factor), Math.round(h * factor)];
+      if (meta.hasAlpha) {
+        // ComfyUI LoadImage exposes RGB separately from alpha. Preserve the
+        // source cut-out's scaled alpha instead of making it opaque on upscale.
+        const outputMeta = await sharp(out).metadata();
+        const alpha = await sharp(source).extractChannel("alpha")
+          .resize(outputMeta.width ?? tw, outputMeta.height ?? th)
+          .raw().toBuffer({ resolveWithObject: true });
+        const rgb = await sharp(out).removeAlpha().toBuffer();
+        out = await sharp(rgb).joinChannel(alpha.data, {
+          raw: { width: alpha.info.width, height: alpha.info.height, channels: 1 },
+        }).png().toBuffer();
+      }
       const originalUrl = await ctx.storeOriginal?.(
         out,
         `upscale-${tw}x${th}.png`,
@@ -206,15 +217,16 @@ async function execute(
     case "split_layers": {
       const layers = Math.round(Math.min(8, Math.max(2, input.layers ?? 4)));
       const outs = await runComfy(ctx, source, (image) =>
-        layersGraph(image, layers, input.prompt ?? ""),
+        operationWorkflows(requireComfy(ctx)).layers(image, layers, input.prompt ?? ""),
       );
       return {
-        images: await Promise.all(
-          outs.map(async (buffer, i) => ({
-            buffer: await trimTransparent(buffer),
+        images:
+          outs.map((buffer, i) => ({
+            // Keep the full registered frame: trimming each layer independently
+            // destroys their alignment when the user overlays them later.
+            buffer,
             title: `${title} · 图层 ${i + 1}`,
           })),
-        ),
         method: "model",
         summary: `Split the image into ${outs.length} layers with Qwen-Image-Layered (first is usually the background).`,
       };
@@ -232,7 +244,7 @@ async function execute(
       const comfy = requireComfy(ctx);
       const maskName = await upload(comfy, mask, `${input.elementId}-mask.png`);
       const [out] = await runComfy(ctx, source, (image) =>
-        eraseGraph(image, maskName),
+        operationWorkflows(comfy).erase(image, maskName),
       );
       return {
         images: [{ buffer: out!, title: `${title} · 擦除` }],
@@ -260,12 +272,12 @@ async function execute(
         );
       }
       const [out] = await runComfy(ctx, source, (image) =>
-        editGraph(image, prompt, reference),
+        operationWorkflows(comfy).edit(image, prompt, reference),
       );
       return {
         images: [{ buffer: out!, title: `${title} · 编辑` }],
         method: "model",
-        summary: `Edited the image with Qwen-Image-Edit: "${prompt.slice(0, 80)}".`,
+        summary: `Edited the image with ${comfy.editModel === "flux2-klein-9b" ? "local FLUX.2 Klein 9B" : "Qwen-Image-Edit"}: "${prompt.slice(0, 80)}".`,
       };
     }
 

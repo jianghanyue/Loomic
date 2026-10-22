@@ -5,6 +5,8 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import type { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { HumanMessage } from "@langchain/core/messages";
+import { imageMessageBlock } from "./image-messages.js";
+import { imageExtension, imageOutputJobFields } from "../generation/image-output.js";
 import type {
   ImageAttachment,
   ImageGenerationPreference,
@@ -511,6 +513,7 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
               title: input.title,
               model: input.model,
               aspect_ratio: input.aspectRatio,
+              ...imageOutputJobFields(input),
               ...(input.quality ? { quality: input.quality } : {}),
               ...(input.inputImages ? { input_images: input.inputImages } : {}),
             },
@@ -534,7 +537,11 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
           // Poll until terminal state
           // Worker image VT=120s, but Replicate calls can take 100s+ plus queue delay.
           const POLL_INTERVAL = 2000;
-          const MAX_WAIT = 240_000; // 4 minutes
+          // Local model loading/decoding may exceed the cloud wait budget.
+          // Allow the configured ComfyUI timeout plus queue/upload grace.
+          const MAX_WAIT = input.model.startsWith("comfyui/")
+            ? Math.max(240_000, (options.env.comfyuiTimeoutMs ?? 600_000) + 60_000)
+            : 240_000;
           const start = Date.now();
           let pollCount = 0;
 
@@ -887,7 +894,7 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
             const response = await fetch(sourceUrl);
             if (!response.ok) throw new Error(`Download failed: ${response.status}`);
             const buffer = Buffer.from(await response.arrayBuffer());
-            const ext = mimeType === "image/webp" ? "webp" : "png";
+            const ext = imageExtension(mimeType);
             const slug = prompt.slice(0, 40).replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
             const fileName = `gen-${slug}-${Date.now()}.${ext}`;
 
@@ -905,11 +912,12 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
               .upload(objectPath, buffer, { contentType: mimeType, upsert: false });
             if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
 
-            const { data: urlData } = client.storage
+            const { data: urlData, error: signError } = await client.storage
               .from("project-assets")
-              .getPublicUrl(objectPath);
+              .createSignedUrl(objectPath, 3600);
+            if (signError || !urlData?.signedUrl) throw new Error("Could not sign the generated image URL.");
 
-            return urlData.publicUrl;
+            return urlData.signedUrl;
           };
         }
 
@@ -1065,15 +1073,9 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
                 // { type: "image", source_type: "base64" } format is NOT
                 // recognized by @langchain/google-genai and gets serialized
                 // as raw text, blowing past the token limit.
-                return {
-                  type: "image_url" as const,
-                  image_url: `data:${mime};base64,${b64}`,
-                };
+                return imageMessageBlock(`data:${mime};base64,${b64}`);
               } catch {
-                return {
-                  type: "image_url" as const,
-                  image_url: a.url,
-                };
+                return imageMessageBlock(a.url);
               }
             }),
           );

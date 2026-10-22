@@ -26,6 +26,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (process.env.NEXT_PUBLIC_LOOMIC_PREVIEW === "true") {
+      setLoading(false);
+      return;
+    }
+
     const supabase = getSupabaseBrowserClient();
 
     supabase.auth.getSession().then(({ data }) => {

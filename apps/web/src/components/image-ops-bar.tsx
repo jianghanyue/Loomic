@@ -35,7 +35,7 @@ type Action = {
   done: string;
   params?: Record<string, unknown>;
   /** Needs extra input (a region or a prompt) before it can run. */
-  mode?: "erase" | "edit";
+  mode?: "erase" | "edit" | "layers";
 };
 
 const ACTIONS: Action[] = [
@@ -47,7 +47,7 @@ const ACTIONS: Action[] = [
     params: { factor: 2 },
     done: "已放大",
   },
-  { op: "split_layers", label: "拆分图层", icon: Layers, done: "已拆分图层" },
+  { op: "split_layers", label: "拆分图层", icon: Layers, done: "已拆分图层", mode: "layers" },
   {
     op: "erase_region",
     label: "擦除",
@@ -64,8 +64,6 @@ const ACTIONS: Action[] = [
   },
   { op: "vectorize_image", label: "矢量化", icon: PenTool, done: "已转为矢量" },
 ];
-
-const UNAVAILABLE_HINT = "需要服务端配置 ComfyUI";
 
 type Rect = { x: number; y: number; width: number; height: number };
 
@@ -100,7 +98,9 @@ export function ImageOpsBar({
     null,
   );
   const [running, setRunning] = useState<ImageOpName | null>(null);
-  const [mode, setMode] = useState<"erase" | "edit" | null>(null);
+  const [mode, setMode] = useState<"erase" | "edit" | "layers" | null>(null);
+  const [layerCount, setLayerCount] = useState(4);
+  const [layerPrompt, setLayerPrompt] = useState("");
   const [prompt, setPrompt] = useState("");
   /** Erase region in fractions (0–1) of the image. */
   const [region, setRegion] = useState<Rect | null>(null);
@@ -114,6 +114,15 @@ export function ImageOpsBar({
   const image =
     selected.length === 1 && selected[0]?.type === "image" ? selected[0] : null;
   const imageId = image?.id;
+  // Re-check on selecting a new image, e.g. after a model download finishes.
+  useEffect(() => {
+    if (!imageId) return;
+    let canceled = false;
+    const refresh = () => fetchImageOpCapabilities(accessToken).then((caps) => { if (!canceled) setCapabilities(caps); }).catch(() => {});
+    void refresh();
+    const interval = setInterval(refresh, 15_000);
+    return () => { canceled = true; clearInterval(interval); };
+  }, [accessToken, imageId]);
   const bounds = useScreenBounds(excalidrawApi, imageId ?? "");
   const stackRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLInputElement>(null);
@@ -216,6 +225,7 @@ export function ImageOpsBar({
 
   const eraseAction = ACTIONS.find((a) => a.op === "erase_region") as Action;
   const editAction = ACTIONS.find((a) => a.op === "edit_image") as Action;
+  const layersAction = ACTIONS.find((a) => a.op === "split_layers") as Action;
 
   return (
     <>
@@ -234,7 +244,8 @@ export function ImageOpsBar({
       >
         <div className={`flex items-center gap-0.5 ${PANEL}`}>
           {ACTIONS.map((action) => {
-            const available = capabilities?.ops[action.op] ?? true;
+            const available = capabilities?.ops[action.op] ?? false;
+            const detail = capabilities?.details?.[action.op];
             const isRunning = running === action.op;
             const Icon = isRunning ? Loader2 : action.icon;
             return (
@@ -244,8 +255,8 @@ export function ImageOpsBar({
                 disabled={!available || running !== null}
                 title={
                   available
-                    ? action.label
-                    : `${action.label}（${UNAVAILABLE_HINT}）`
+                    ? `${action.label} · ${detail?.backend ?? "本地处理"}`
+                    : `${action.label}（${detail?.reason ?? (capabilities ? "需要服务端配置 ComfyUI" : "正在检查本地模型")}）`
                 }
                 onClick={() => onActionClick(action)}
                 className={`${BUTTON} ${action.mode && mode === action.mode ? BUTTON_ACTIVE : BUTTON_IDLE}`}
@@ -282,6 +293,28 @@ export function ImageOpsBar({
               )}
               擦除
             </button>
+          </div>
+        )}
+
+        {mode === "layers" && (
+          <div className={`flex flex-col items-stretch gap-1 p-2 ${PANEL}`}>
+            <input value={layerPrompt} onChange={(e) => setLayerPrompt(e.target.value)}
+              placeholder="可选：描述画面内容，帮助拆分"
+              className="min-w-0 h-8 px-2 bg-transparent text-[13px] outline-none" />
+            <div className="flex items-center gap-2">
+            <label className="text-[13px] text-muted-foreground flex items-center gap-2">
+              图层数量
+              <select aria-label="拆分图层数量" value={layerCount} disabled={running !== null}
+                onChange={(e) => setLayerCount(Number(e.target.value))}
+                className="h-8 px-2 rounded-lg bg-background border border-border text-foreground">
+                {[2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+            <span className="text-[12px] text-muted-foreground">2–8 层，内容越多耗时越长</span>
+            <button type="button" onClick={exitMode} className={`${BUTTON} ${BUTTON_IDLE}`}>取消</button>
+            <button type="button" disabled={running !== null} onClick={() => run(layersAction, { layers: layerCount, ...(layerPrompt.trim() ? { prompt: layerPrompt.trim() } : {}) })}
+              className={`${BUTTON} bg-foreground text-background hover:bg-foreground/90`}>开始拆分</button>
+            </div>
           </div>
         )}
 

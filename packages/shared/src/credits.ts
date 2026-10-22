@@ -133,6 +133,7 @@ export const PLAN_CONFIGS: Record<SubscriptionPlan, PlanConfig> = {
  * Models not listed here default to "pro" access.
  */
 export const MODEL_MIN_TIER: Record<string, SubscriptionPlan> = {
+  "comfyui/z-image-turbo": "free",
   // ── Image models ──
   // Free tier (basic 3)
   "google-official/gemini-2.5-flash-image": "free",
@@ -230,6 +231,7 @@ export type VideoModelCost =
  * Models not listed default to { standard: 5, hd: 10, ultra: 20 }.
  */
 export const IMAGE_MODEL_COSTS: Record<string, ImageModelCost> = {
+  "comfyui/z-image-turbo": { standard: 0, hd: 0, ultra: 0 },
   // Google Official
   "google-official/gemini-2.5-flash-image": {
     standard: 5,

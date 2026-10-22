@@ -9,32 +9,39 @@
 type CanvasElement = Record<string, unknown>;
 
 const EXCALIDRAW_FONT_FAMILY_MAP: Record<number, string> = {
-  1: "20px Virgil, Segoe Print, Comic Sans MS, cursive",
-  2: "20px Helvetica, Arial, sans-serif",
-  3: "20px Cascadia, monospace",
+  1: 'Virgil, "Segoe UI Emoji"',
+  2: 'Helvetica, "Segoe UI Emoji"',
+  3: 'Cascadia, "Segoe UI Emoji"',
+  5: 'Excalifont, Xiaolai, "Segoe UI Emoji"',
+  6: 'Nunito, "Segoe UI Emoji"',
+  7: '"Lilita One", "Segoe UI Emoji"',
+  8: '"Comic Shanns", "Segoe UI Emoji"',
+  9: '"Liberation Sans", "Segoe UI Emoji"',
 };
+
+export function getCanvasFontString(fontSize: number, fontFamily: number): string {
+  return `${fontSize}px ${EXCALIDRAW_FONT_FAMILY_MAP[fontFamily] ?? EXCALIDRAW_FONT_FAMILY_MAP[5]}`;
+}
 
 function measureTextDOM(
   text: string,
   fontSize: number,
   fontFamily: number = 1,
+  lineHeight: number = 1.25,
 ): { width: number; height: number } {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
   if (!ctx) {
-    return { width: text.length * fontSize * 0.6, height: fontSize * 1.25 };
+    return { width: text.length * fontSize * 0.6, height: text.split("\n").length * fontSize * lineHeight };
   }
-  const baseFontStr = EXCALIDRAW_FONT_FAMILY_MAP[fontFamily] ?? EXCALIDRAW_FONT_FAMILY_MAP[1]!;
-  const fontStr = baseFontStr.replace("20px", `${fontSize}px`);
-  ctx.font = fontStr;
+  ctx.font = getCanvasFontString(fontSize, fontFamily);
   const lines = text.split("\n");
-  const lineHeight = fontSize * 1.25;
   let maxWidth = 0;
   for (const line of lines) {
     const metrics = ctx.measureText(line);
     if (metrics.width > maxWidth) maxWidth = metrics.width;
   }
-  return { width: maxWidth, height: lines.length * lineHeight };
+  return { width: maxWidth, height: lines.length * fontSize * lineHeight };
 }
 
 function validateBindings(elements: CanvasElement[]): boolean {
@@ -81,7 +88,10 @@ function recenterBoundTextElements(elements: CanvasElement[]): boolean {
     if (!text) continue;
     const fontSize = (el.fontSize as number) || 20;
     const fontFamily = (el.fontFamily as number) || 1;
-    const measured = measureTextDOM(text, fontSize, fontFamily);
+    const lineHeight = typeof el.lineHeight === "number" ? el.lineHeight
+      : fontFamily === 6 ? 1.35 : fontFamily === 2 || fontFamily === 7 || fontFamily === 9 ? 1.15
+        : fontFamily === 3 ? 1.2 : 1.25;
+    const measured = measureTextDOM(text, fontSize, fontFamily, lineHeight);
     const currentW = Number(el.width) || 0;
     const currentH = Number(el.height) || 0;
     const wDiff = Math.abs(measured.width - currentW) / Math.max(currentW, 1);

@@ -33,6 +33,13 @@ export type ServerEnv = {
   /** ComfyUI server for image operations (cutout, upscale, layers, …). */
   comfyuiBaseUrl?: string;
   comfyuiTimeoutMs?: number;
+  comfyuiEditModel?: "flux2-klein-9b" | "qwen-image-2.1";
+  comfyuiOpsProfile?: "layerstyle";
+  comfyuiModelsDir?: string;
+  dashscopeApiKey?: string;
+  dashscopeApiBase?: string;
+  dashscopeAgentModel?: string;
+  openAIAgentModel?: string;
   googleApiKey?: string;
   googleApplicationCredentials?: string;
   googleFontsApiKey?: string;
@@ -86,6 +93,13 @@ export function loadServerEnv(
     overrides.openAIApiBase ?? normalizeOptionalString(source.OPENAI_API_BASE);
   const openAIApiKey =
     overrides.openAIApiKey ?? normalizeOptionalString(source.OPENAI_API_KEY);
+  // Temporarily disable Qwen without deleting the user's saved credential.
+  const dashscopeApiKey = source.LOOMIC_ENABLE_DASHSCOPE === "false"
+    ? undefined
+    : overrides.dashscopeApiKey ?? normalizeOptionalString(source.DASHSCOPE_API_KEY);
+  const dashscopeApiBase = overrides.dashscopeApiBase ?? normalizeOptionalString(source.DASHSCOPE_API_BASE);
+  const dashscopeAgentModel = overrides.dashscopeAgentModel ?? normalizeOptionalString(source.DASHSCOPE_AGENT_MODEL);
+  const openAIAgentModel = overrides.openAIAgentModel ?? normalizeOptionalString(source.OPENAI_AGENT_MODEL);
   const supabaseUrl =
     overrides.supabaseUrl ?? normalizeOptionalString(source.SUPABASE_URL);
   const supabaseAnonKey =
@@ -167,6 +181,13 @@ export function loadServerEnv(
     overrides.skillsRoot ?? normalizeOptionalString(source.LOOMIC_SKILLS_ROOT);
   const comfyuiBaseUrl =
     overrides.comfyuiBaseUrl ?? normalizeOptionalString(source.COMFYUI_BASE_URL);
+  const comfyuiEditModel = overrides.comfyuiEditModel ?? normalizeOptionalString(source.COMFYUI_EDIT_MODEL);
+  const comfyuiOpsProfile = overrides.comfyuiOpsProfile ?? normalizeOptionalString(source.COMFYUI_OPS_PROFILE);
+  const comfyuiModelsDir = overrides.comfyuiModelsDir ?? normalizeOptionalString(source.COMFYUI_MODELS_DIR);
+  if (comfyuiOpsProfile && comfyuiOpsProfile !== "layerstyle") throw new Error("COMFYUI_OPS_PROFILE must be layerstyle.");
+  if (comfyuiEditModel && comfyuiEditModel !== "flux2-klein-9b" && comfyuiEditModel !== "qwen-image-2.1") {
+    throw new Error("COMFYUI_EDIT_MODEL must be flux2-klein-9b or qwen-image-2.1.");
+  }
   const comfyuiTimeoutMs =
     overrides.comfyuiTimeoutMs ??
     (source.COMFYUI_TIMEOUT_MS
@@ -230,6 +251,10 @@ export function loadServerEnv(
     ...(googleApplicationCredentials ? { googleApplicationCredentials } : {}),
     ...(openAIApiBase ? { openAIApiBase } : {}),
     ...(openAIApiKey ? { openAIApiKey } : {}),
+    ...(dashscopeApiKey ? { dashscopeApiKey } : {}),
+    ...(dashscopeApiBase ? { dashscopeApiBase } : {}),
+    ...(dashscopeAgentModel ? { dashscopeAgentModel } : {}),
+    ...(openAIAgentModel ? { openAIAgentModel } : {}),
     ...(supabaseUrl ? { supabaseUrl } : {}),
     ...(supabaseAnonKey ? { supabaseAnonKey } : {}),
     ...(supabaseDbUrl ? { supabaseDbUrl } : {}),
@@ -270,6 +295,9 @@ export function loadServerEnv(
       : {}),
     ...(skillsRoot ? { skillsRoot } : {}),
     ...(comfyuiBaseUrl ? { comfyuiBaseUrl } : {}),
+    ...(comfyuiOpsProfile ? { comfyuiOpsProfile: comfyuiOpsProfile as "layerstyle" } : {}),
+    ...(comfyuiModelsDir ? { comfyuiModelsDir } : {}),
+    ...(comfyuiEditModel ? { comfyuiEditModel: comfyuiEditModel as "flux2-klein-9b" | "qwen-image-2.1" } : {}),
     ...(comfyuiTimeoutMs ? { comfyuiTimeoutMs } : {}),
     ...(workerConcurrency ? { workerConcurrency } : {}),
     ...(workerImageConcurrency ? { workerImageConcurrency } : {}),

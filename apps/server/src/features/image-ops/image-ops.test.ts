@@ -273,6 +273,17 @@ describe("remove_background", () => {
     expect(file.mimeType).toBe("image/webp");
   });
 
+  it("does not overlap previous results beside the same source", async () => {
+    const fake = await fakeComfy();
+    fake.outputs = [await solid(60, 40, 0.5)];
+    const supa = await canvasWith(await motifOnWhite(), {
+      elements: [{ id: "previous", type: "image", x: 240, y: 0, width: 200, height: 100, isDeleted: false }],
+    });
+    const result = await run(supa, { op: "remove_background" }, comfyCtx(fake));
+    const created = supa.row.content.elements.find((e: any) => e.id === result.elementIds[0]);
+    expect(created.x).toBe(480);
+  });
+
   it("keys out a solid background locally when ComfyUI is not configured", async () => {
     const supa = await canvasWith(await motifOnWhite(80));
     const result = await run(supa, { op: "remove_background" });
@@ -339,6 +350,19 @@ describe("upscale_image", () => {
     });
   });
 
+  it("preserves transparent source alpha when the model returns RGB", async () => {
+    const fake = await fakeComfy();
+    fake.outputs = [await sharp({ create: { width: 100, height: 60, channels: 3, background: "red" } }).png().toBuffer()];
+    const supa = await canvasWith(await solid(50, 30, 0.5));
+    await run(supa, { op: "upscale_image", factor: 2 }, comfyCtx(fake));
+    const buffer = (await fileOf(supa, newElements(supa)[0])).buffer;
+    const meta = await sharp(buffer).metadata();
+    expect(meta.hasAlpha).toBe(true);
+    expect([meta.width, meta.height]).toEqual([100, 60]);
+    const stats = await sharp(buffer).stats();
+    expect(stats.channels[3]!.mean).toBeCloseTo(128, 0);
+  });
+
   it("falls back to a plain resize without ComfyUI", async () => {
     const supa = await canvasWith(await solid(50, 30));
     const result = await run(supa, { op: "upscale_image", factor: 3 });
@@ -352,6 +376,28 @@ describe("upscale_image", () => {
 });
 
 describe("model-only operations", () => {
+  it("keeps the full transparent frame of split layers for re-alignment", async () => {
+    const fake = await fakeComfy();
+    fake.outputs = [await sharp({ create: { width: 80, height: 80, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+      .composite([{ input: await solid(20, 20), left: 10, top: 15 }]).png().toBuffer()];
+    const supa = await canvasWith(await motifOnWhite());
+    await run(supa, { op: "split_layers", layers: 2 }, comfyCtx(fake));
+    const meta = await sharp((await fileOf(supa, newElements(supa)[0])).buffer).metadata();
+    expect([meta.width, meta.height]).toEqual([80, 80]);
+    expect(meta.hasAlpha).toBe(true);
+  });
+
+  it("rejects missing local model dependencies before uploading or queuing", async () => {
+    let touched = false;
+    const supa = await canvasWith(await motifOnWhite());
+    await expect(run(supa, { op: "split_layers" }, { comfy: {
+      opsProfile: "layerstyle", getObjectInfo: async () => ({}),
+      uploadImage: async () => { touched = true; return "x"; },
+      run: async () => { touched = true; return []; },
+    } })).rejects.toMatchObject({ code: "model_unavailable" });
+    expect(touched).toBe(false);
+  });
+
   it("split_layers places every returned layer", async () => {
     const fake = await fakeComfy();
     fake.outputs = [
@@ -436,6 +482,22 @@ describe("model-only operations", () => {
     expect(encode.inputs.prompt).toBe("make it indigo");
     expect(encode.inputs["images.image_2"]).toEqual(["ref", 0]);
     expect(graph.ref.inputs.image).toMatch(/ref\.png \[input\]$/);
+  });
+
+  it("edits with installed FLUX.2 when selected and preserves the original", async () => {
+    const fake = await fakeComfy();
+    fake.outputs = [await solid(80, 80)];
+    const supa = await canvasWith(await motifOnWhite());
+    const original = structuredClone(supa.row.content.elements[0]);
+    const result = await run(supa, { op: "edit_image", prompt: "make the mug blue" }, {
+      comfy: createComfyClient({ baseUrl: fake.baseUrl, pollMs: 5, editModel: "flux2-klein-9b" }),
+    });
+    expect(fake.prompts[0]!["3"].inputs.unet_name).toBe("flux-2-klein-9b-fp8.safetensors");
+    expect(fake.prompts[0]!["6"].inputs.text).toBe("make the mug blue");
+    expect(fake.prompts[0]!["18"].class_type).toBe("VAEDecodeTiled");
+    expect(result.summary).toContain("local FLUX.2 Klein 9B");
+    expect(newElements(supa)).toHaveLength(1);
+    expect(supa.row.content.elements[0]).toEqual(original);
   });
 
   it.each(["split_layers", "erase_region", "edit_image"] as const)(

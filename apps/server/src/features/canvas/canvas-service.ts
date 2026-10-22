@@ -186,7 +186,7 @@ async function resolveFilesFromStorage(
     return content;
   }
 
-  // Resolve public URLs instead of downloading each file
+  // Sign private asset URLs instead of downloading each file into the API process.
   // Group by bucket (normally all in one bucket)
   const byBucket = new Map<string, typeof ossEntries>();
   for (const entry of ossEntries) {
@@ -197,13 +197,14 @@ async function resolveFilesFromStorage(
 
   for (const [bucket, entries] of byBucket) {
     for (const entry of entries) {
-      const { data } = client.storage
+      const { data, error } = await client.storage
         .from(bucket)
-        .getPublicUrl(entry.objectPath);
+        .createSignedUrl(entry.objectPath, 3600);
+      if (error || !data?.signedUrl) throw new Error("Could not resolve the canvas image URL.");
       updatedFiles[entry.fileId] = {
         ...entry.fileData,
         dataURL: undefined,
-        storageUrl: data.publicUrl,
+        storageUrl: data.signedUrl,
       };
     }
   }

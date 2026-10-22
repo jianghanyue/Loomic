@@ -68,6 +68,7 @@ export function upscaleGraph(
   width: number,
   height: number,
   factor: number,
+  modelName = "4x-UltraSharp.pth",
 ): Built {
   const { graph: g, id } = loadNamed(
     "upscale-ultrasharp-4x.api.json",
@@ -76,6 +77,8 @@ export function upscaleGraph(
     "save",
   );
   node(g, id.image).inputs.image = image;
+  const model = Object.values(g).find((n) => n.class_type === "UpscaleModelLoader");
+  if (model) model.inputs.model_name = modelName;
   if (factor > UPSCALE_MODEL_FACTOR) {
     g.pre = {
       class_type: "ImageScaleBy",
@@ -143,6 +146,7 @@ export function layersGraph(
   image: string,
   layers: number,
   prompt: string,
+  localFp8 = false,
 ): Built {
   const { graph: g, id } = loadNamed(
     "layers-qwen-image-layered.api.json",
@@ -154,7 +158,17 @@ export function layersGraph(
     "save",
   );
   node(g, id.image).inputs.image = image;
-  node(g, id.scale).inputs.largest_size = 1024;
+  node(g, id.scale).inputs.largest_size = localFp8 ? 640 : 1024;
+  if (localFp8) {
+    const model = Object.values(g).find((n) => n.class_type === "UNETLoader");
+    if (model) model.inputs.unet_name = "qwen_image_layered_fp8mixed.safetensors";
+    // Use the model's original quality settings; the 20-step template shortcut
+    // can collapse simple scenes into one meaningful layer plus weak layers.
+    node(g, id.sampler).inputs.steps = 50;
+    node(g, id.sampler).inputs.cfg = 4;
+    // Preserve the official layered RGBA VAE path. Aggressive model offloading
+    // in the local launcher leaves the VAE enough memory without tiling seams.
+  }
   node(g, id.prompt).inputs.value =
     prompt || "An image with a foreground subject and a background.";
   node(g, id.latent).inputs.layers = layers;

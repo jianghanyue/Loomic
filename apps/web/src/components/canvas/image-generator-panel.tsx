@@ -72,15 +72,25 @@ export function ImageGeneratorPanel({
   // Fetch available models with error logging
   useEffect(() => {
     let cancelled = false;
-    fetchImageModels()
+    fetchImageModels(accessTokenRef.current)
       .then((r) => {
-        if (!cancelled) setModels(r.models);
+        if (cancelled) return;
+        setModels(r.models);
+        if (!r.models.some((candidate) => candidate.id === data.model)) {
+          const fallback = r.models.find((candidate) => candidate.provider === "comfyui") ?? r.models[0];
+          if (fallback) {
+            setModel(fallback.id);
+            const nextQuality = fallback.provider === "comfyui" ? "standard" : data.quality;
+            setQuality(nextQuality);
+            updateImageGeneratorElement(excalidrawApi, elementId, { model: fallback.id, quality: nextQuality });
+          }
+        }
       })
       .catch((err) => {
         console.warn("[image-gen] Failed to fetch models:", err);
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [elementId, excalidrawApi]);
 
   // Close dropdowns when clicking outside the panel
   useEffect(() => {
@@ -117,6 +127,9 @@ export function ImageGeneratorPanel({
     (elementBounds.y + elementBounds.height + scrollY) * zoom + 8;
 
   const currentModel = models.find((m) => m.id === model);
+  const qualityChoices = currentModel?.provider === "comfyui"
+    ? [{ value: "standard", label: "1K" }, { value: "hd", label: "1.5K" }, { value: "ultra", label: "2K" }]
+    : QUALITIES;
 
   const handleAspectRatioChange = useCallback(
     (ratio: string) => {
@@ -143,9 +156,14 @@ export function ImageGeneratorPanel({
     (m: string) => {
       setModel(m);
       setShowModelDropdown(false);
-      updateImageGeneratorElement(excalidrawApi, elementId, { model: m });
+      const local = models.find((candidate) => candidate.id === m)?.provider === "comfyui";
+      if (local) {
+        setQuality("standard");
+        setRefImages([]);
+      }
+      updateImageGeneratorElement(excalidrawApi, elementId, { model: m, ...(local ? { quality: "standard" } : {}) });
     },
-    [excalidrawApi, elementId],
+    [excalidrawApi, elementId, models],
   );
 
   const handleGenerate = useCallback(async () => {
@@ -271,6 +289,10 @@ export function ImageGeneratorPanel({
         </div>
       )}
 
+      {currentModel?.provider === "comfyui" && (
+        <div className="px-1 pb-1 text-xs text-muted-foreground">本地 GPU 文生图 · 不扣积分 · 暂不支持参考图</div>
+      )}
+
       {/* Bottom toolbar */}
       <div className="mt-1 flex items-center justify-between">
         {/* Left: model + ref image */}
@@ -373,10 +395,11 @@ export function ImageGeneratorPanel({
           <button
             type="button"
             onClick={() => refInputRef.current?.click()}
+            disabled={currentModel?.provider === "comfyui"}
             className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-muted ${
               refImages.length > 0 ? "text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
-            title="Add reference image"
+            title={currentModel?.provider === "comfyui" ? "本地 Z-Image Turbo 当前仅支持文生图" : "Add reference image"}
           >
             <ImageUp className="h-3.5 w-3.5" />
           </button>
@@ -413,7 +436,7 @@ export function ImageGeneratorPanel({
               className="flex h-8 items-center gap-0.5 rounded-lg px-2 text-xs text-muted-foreground transition-colors hover:bg-muted"
             >
               <span className="text-foreground">
-                {QUALITIES.find((q) => q.value === quality)?.label ?? "2K"}
+                {qualityChoices.find((q) => q.value === quality)?.label ?? "2K"}
               </span>
               <svg
                 className="h-3 w-3 text-muted-foreground"
@@ -425,7 +448,7 @@ export function ImageGeneratorPanel({
             </button>
             {showQualityDropdown && (
               <div className="absolute bottom-full right-0 z-50 mb-1 rounded-lg border-[0.5px] border-border bg-card py-1 shadow-card">
-                {QUALITIES.map((q) => (
+                {qualityChoices.map((q) => (
                   <button
                     key={q.value}
                     type="button"

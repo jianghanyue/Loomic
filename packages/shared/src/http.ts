@@ -119,6 +119,7 @@ export const applicationErrorCodeSchema = z.enum([
   "variant_not_found",
   "checkout_failed",
   "generation_failed",
+  "invalid_image_options",
 ]);
 
 export const applicationErrorResponseSchema = z.object({

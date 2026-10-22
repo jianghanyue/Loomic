@@ -196,6 +196,9 @@ async function processMessage(
     // Dead-letter immediately so the caller (agent polling) gets fast feedback.
     const NON_RETRYABLE_CODES = new Set([
       "invalid_input",
+      "invalid_image_options",
+      "invalid_output_format",
+      "transparency_missing",
       "model_not_found",
       "provider_not_found",
       "safety_filter",

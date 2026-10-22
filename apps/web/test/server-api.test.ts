@@ -5,6 +5,9 @@ import {
   createProject,
   createRun,
   fetchProjects,
+  fetchImageModels,
+  fetchImageOpCapabilities,
+  runImageOp,
   fetchVideoModels,
   fetchViewer,
 } from "../src/lib/server-api";
@@ -16,6 +19,41 @@ describe("authenticated server API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("NEXT_PUBLIC_SERVER_BASE_URL", "http://localhost:3001");
+  });
+
+  it("fetches per-operation local model readiness and missing-model reasons", async () => {
+    const payload = { comfyui: true, ops: { split_layers: false }, details: { split_layers: {
+      available: false, backend: "Qwen-Image-Layered", reason: "缺少模型 qwen_image_layered_fp8mixed.safetensors",
+    } } };
+    mockFetch.mockResolvedValue({ ok: true, json: async () => payload });
+    expect(await fetchImageOpCapabilities("token_abc")).toEqual(payload);
+    expect(mockFetch).toHaveBeenCalledWith("http://localhost:3001/api/image-ops/capabilities", {
+      headers: { Authorization: "Bearer token_abc" },
+    });
+  });
+
+  it("posts the chosen layer count and optional scene description", async () => {
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ elementIds: ["layer1", "layer2"], method: "model", summary: "split" }) });
+    const input = { op: "split_layers" as const, elementId: "source", layers: 4, prompt: "A red mug and a gray background" };
+    await runImageOp("token_abc", "canvas1", input);
+    expect(mockFetch).toHaveBeenCalledWith("http://localhost:3001/api/canvases/canvas1/image-ops", {
+      method: "POST", headers: { Authorization: "Bearer token_abc", "content-type": "application/json" }, body: JSON.stringify(input),
+    });
+  });
+
+  it("surfaces unavailable model errors without pretending the operation succeeded", async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 503, json: async () => ({ error: { code: "model_unavailable", message: "缺少模型" } }) });
+    await expect(runImageOp("token_abc", "canvas1", { op: "split_layers", elementId: "source" }))
+      .rejects.toMatchObject({ code: "model_unavailable", message: "缺少模型" });
+  });
+
+  it("fetchImageModels sends the session token so local models are not falsely shown as locked", async () => {
+    const payload = { models: [{ id: "comfyui/z-image-turbo", provider: "comfyui", accessible: true, creditCost: 0 }] };
+    mockFetch.mockResolvedValue({ ok: true, json: async () => payload });
+    expect(await fetchImageModels("local-token")).toEqual(payload);
+    expect(mockFetch).toHaveBeenCalledWith("http://localhost:3001/api/image-models", {
+      headers: { Authorization: "Bearer local-token" },
+    });
   });
 
   it("fetchViewer sends bearer token and returns viewer response", async () => {

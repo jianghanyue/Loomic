@@ -13,6 +13,7 @@ const OPENAI_MODELS: ModelInfo[] = [
   { id: "openai:gpt-5.2", name: "OpenAI GPT-5.2", provider: "openai" },
   { id: "openai:gpt-5.4-mini", name: "GPT-5.4 Mini", provider: "openai" },
   { id: "openai:gpt-4.1", name: "GPT-4.1", provider: "openai" },
+  { id: "openai:gpt-4.1-mini", name: "GPT-4.1 Mini", provider: "openai" },
   { id: "openai:gpt-4o", name: "GPT-4o", provider: "openai" },
   { id: "openai:gpt-4o-mini", name: "GPT-4o Mini", provider: "openai" },
   { id: "openai:o3-mini", name: "o3 Mini", provider: "openai" },
@@ -32,7 +33,13 @@ const GOOGLE_MODELS: ModelInfo[] = [
 export async function registerModelRoutes(app: FastifyInstance, env: ServerEnv) {
   app.get("/api/models", async (_request, reply) => {
     const models: ModelInfo[] = [];
-    if (env.openAIApiKey && env.openAIApiBase) {
+    if (env.dashscopeApiKey) {
+      const model = env.dashscopeAgentModel ?? "qwen3-vl-plus";
+      models.push({ id: `dashscope:${model}`, name: `千问 · ${model}`, provider: "dashscope" });
+    }
+    if (env.openAIApiKey && env.openAIAgentModel) {
+      models.push({ id: `openai:${env.openAIAgentModel}`, name: `OpenAI · ${env.openAIAgentModel}`, provider: "openai" });
+    } else if (env.openAIApiKey && env.openAIApiBase && !/^https:\/\/api\.openai\.com\/v1\/?$/.test(env.openAIApiBase)) {
       // Custom OpenAI-compatible endpoint (e.g. DashScope/Qwen): the OpenAI
       // catalog IDs won't exist there, so only offer the configured model.
       const id = env.agentModel.includes(":") ? env.agentModel : `openai:${env.agentModel}`;
