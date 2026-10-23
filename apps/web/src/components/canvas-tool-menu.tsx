@@ -328,10 +328,17 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
             el.customData?.status === "generating",
         );
 
-        // Quick identity check: IDs + positions as a serialized key
-        const genKey = generatingRaw.map((el: any) =>
-          `${el.id}:${el.x}:${el.y}:${el.width}:${el.height}`
-        ).join("|");
+        // Viewport changes do not mutate element geometry, but they do change
+        // the fixed overlay's screen coordinates. Include scroll and zoom so
+        // the generating status follows its canvas node while panning/zooming.
+        const genKey = [
+          scrollX,
+          scrollY,
+          zoom,
+          ...generatingRaw.map((el: any) =>
+            `${el.id}:${el.x}:${el.y}:${el.width}:${el.height}:${el.customData?.model ?? ""}`,
+          ),
+        ].join("|");
 
         if (genKey !== prevGeneratingKeyRef.current) {
           prevGeneratingKeyRef.current = genKey;

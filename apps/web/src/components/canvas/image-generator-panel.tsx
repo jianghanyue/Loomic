@@ -120,9 +120,11 @@ export function ImageGeneratorPanel({
     ta.style.height = `${Math.min(ta.scrollHeight, 140)}px`;
   }, [prompt]);
 
-  // Calculate panel screen position from canvas coordinates
+  // Calculate panel screen position from canvas coordinates. Keep the input
+  // centered on the generator node while the canvas is zoomed or panned.
   const { scrollX, scrollY, zoom } = canvasScrollZoom;
-  const screenX = (elementBounds.x + scrollX) * zoom;
+  const screenX =
+    (elementBounds.x + elementBounds.width / 2 + scrollX) * zoom;
   const screenY =
     (elementBounds.y + elementBounds.height + scrollY) * zoom + 8;
 
@@ -261,7 +263,7 @@ export function ImageGeneratorPanel({
   return createPortal(
     <div
       ref={panelRef}
-      style={{ left: screenX, top: screenY }}
+      style={{ left: screenX, top: screenY, transform: "translateX(-50%)" }}
       className="fixed z-[100] w-[450px] rounded-xl border-[0.5px] border-border bg-card/95 p-2 shadow-card backdrop-blur-lg"
       onKeyDown={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}

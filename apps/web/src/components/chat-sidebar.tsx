@@ -266,8 +266,13 @@ export function ChatSidebar({
   }, []);
 
   useEffect(() => {
+    // The message list is unmounted while the sidebar is collapsed, so a
+    // message update that happens while it is closed cannot scroll the list.
+    // Scroll again after the panel mounts to show the latest conversation.
+    if (!open) return;
+    if (messages.length === 0 && !messagesEndRef.current) return;
     scrollToBottom();
-  }, [messages, scrollToBottom]);
+  }, [messages, open, scrollToBottom]);
 
   // ── Fetch image models for @mention picker ──
   useEffect(() => {

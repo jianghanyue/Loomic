@@ -131,9 +131,11 @@ export function VideoGeneratorPanel({
     ta.style.height = `${Math.min(ta.scrollHeight, 140)}px`;
   }, [prompt]);
 
-  // Calculate panel screen position from canvas coordinates
+  // Calculate panel screen position from canvas coordinates. Keep the input
+  // centered on the generator node while the canvas is zoomed or panned.
   const { scrollX, scrollY, zoom } = canvasScrollZoom;
-  const screenX = (elementBounds.x + scrollX) * zoom;
+  const screenX =
+    (elementBounds.x + elementBounds.width / 2 + scrollX) * zoom;
   const screenY = (elementBounds.y + elementBounds.height + scrollY) * zoom + 8;
 
   const currentModel = models.find((m) => m.id === model);
@@ -340,7 +342,7 @@ export function VideoGeneratorPanel({
   return createPortal(
     <div
       ref={panelRef}
-      style={{ left: screenX, top: screenY }}
+      style={{ left: screenX, top: screenY, transform: "translateX(-50%)" }}
       className="fixed z-[100] w-[520px] rounded-[24px] border border-border bg-card/95 shadow-card backdrop-blur-lg"
       onKeyDown={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
