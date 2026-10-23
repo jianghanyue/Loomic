@@ -372,6 +372,8 @@ async function handleRunCommand(
             ...(event.artifacts ? { artifacts: event.artifacts } : {}),
           };
         }
+      } else if (event.type === "choice.created") {
+        assistantBlocks.push(event.choice);
       }
     }
     log.lap("stream_done", { runId });

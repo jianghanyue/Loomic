@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 
-import type { StreamEvent, ToolBlock } from "@loomic/shared";
+import type { ChoiceBlock, StreamEvent, ToolBlock } from "@loomic/shared";
 import type { Message } from "./use-chat-sessions";
 
 type MessageUpdater = (
@@ -88,6 +88,27 @@ export function useChatStream(updateSessionMessages: MessageUpdater) {
           );
           break;
         }
+
+        case "choice.created":
+          update((prev) =>
+            prev.map((m) => {
+              if (m.id !== assistantId) return m;
+              const exists = m.contentBlocks.some(
+                (block) =>
+                  block.type === "choice" &&
+                  block.questionId === event.choice.questionId,
+              );
+              if (exists) return m;
+              return {
+                ...m,
+                contentBlocks: [
+                  ...m.contentBlocks,
+                  event.choice as ChoiceBlock,
+                ],
+              };
+            }),
+          );
+          break;
 
         case "tool.started":
           update((prev) =>

@@ -184,6 +184,20 @@ export const thinkingBlockSchema = z.object({
   thinking: z.string(),
 });
 
+export const choiceOptionSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  description: z.string().optional(),
+});
+
+export const choiceBlockSchema = z.object({
+  type: z.literal("choice"),
+  questionId: z.string().min(1),
+  title: z.string().min(1),
+  options: z.array(choiceOptionSchema).min(1).max(8),
+  multiple: z.boolean().default(false),
+});
+
 export const toolBlockSchema = z.object({
   type: z.literal("tool"),
   toolCallId: z.string().min(1),
@@ -238,6 +252,7 @@ export const mentionBlockSchema = z.union([
 export const contentBlockSchema = z.union([
   textBlockSchema,
   thinkingBlockSchema,
+  choiceBlockSchema,
   toolBlockSchema,
   imageBlockSchema,
   mentionBlockSchema,
@@ -277,6 +292,8 @@ export type AssetObject = z.infer<typeof assetObjectSchema>;
 
 export type TextBlock = z.infer<typeof textBlockSchema>;
 export type ThinkingBlock = z.infer<typeof thinkingBlockSchema>;
+export type ChoiceOption = z.infer<typeof choiceOptionSchema>;
+export type ChoiceBlock = z.infer<typeof choiceBlockSchema>;
 export type ToolBlock = z.infer<typeof toolBlockSchema>;
 export type ImageBlock = z.infer<typeof imageBlockSchema>;
 export type MessageMention = z.infer<typeof messageMentionSchema>;

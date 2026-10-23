@@ -20,6 +20,7 @@ type ChatInputProps = {
   onRetryAttachment?: (id: string) => void;
   isUploading?: boolean;
   onAtQuery?: (query: string | null) => void;
+  onSlashQuery?: (query: string | null) => void;
   mentions?: MessageMention[];
   onRemoveMention?: (mention: MessageMention) => void;
   selectedCanvasElements?: CanvasSelectedElement[];
@@ -28,6 +29,8 @@ type ChatInputProps = {
 export type ChatInputHandle = {
   /** Remove the @query text from input after picker selection */
   clearAtQuery: () => void;
+  /** Remove the /query text from input after skill selection */
+  clearSlashQuery: () => void;
 };
 
 export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput({
@@ -39,6 +42,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   onRetryAttachment,
   isUploading,
   onAtQuery,
+  onSlashQuery,
   mentions,
   onRemoveMention,
   selectedCanvasElements,
@@ -57,6 +61,13 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
         const lastAtIdx = prev.lastIndexOf("@");
         if (lastAtIdx === -1) return prev;
         return prev.slice(0, lastAtIdx);
+      });
+    },
+    clearSlashQuery() {
+      setValue((prev) => {
+        const lastSlashIdx = prev.lastIndexOf("/");
+        if (lastSlashIdx === -1) return prev;
+        return prev.slice(0, lastSlashIdx);
       });
     },
   }));
@@ -97,33 +108,44 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       const newValue = e.target.value;
       setValue(newValue);
 
-      if (!onAtQuery) return;
-
-      // Find last @ in text to detect mention mode
-      const lastAtIdx = newValue.lastIndexOf("@");
-      if (lastAtIdx === -1) {
-        onAtQuery(null); // close picker
-        return;
+      if (onAtQuery) {
+        // Find last @ in text to detect mention mode
+        const lastAtIdx = newValue.lastIndexOf("@");
+        if (lastAtIdx === -1) {
+          onAtQuery(null);
+        } else {
+          const charBefore = lastAtIdx > 0 ? newValue[lastAtIdx - 1] : " ";
+          const query = newValue.slice(lastAtIdx + 1);
+          onAtQuery(
+            (charBefore === " " || charBefore === "\n" || lastAtIdx === 0) &&
+              !query.includes(" ") &&
+              !query.includes("\n")
+              ? query
+              : null,
+          );
+        }
       }
 
-      // Only trigger if @ is at start or preceded by whitespace
-      const charBefore = lastAtIdx > 0 ? newValue[lastAtIdx - 1] : " ";
-      if (charBefore !== " " && charBefore !== "\n" && lastAtIdx !== 0) {
-        onAtQuery(null);
-        return;
+      if (onSlashQuery) {
+        const lastSlashIdx = newValue.lastIndexOf("/");
+        if (lastSlashIdx === -1) {
+          onSlashQuery(null);
+        } else {
+          const beforeSlash = lastSlashIdx > 0 ? newValue[lastSlashIdx - 1] : " ";
+          const slashQuery = newValue.slice(lastSlashIdx + 1);
+          if (
+            (beforeSlash === " " || beforeSlash === "\n" || lastSlashIdx === 0) &&
+            !slashQuery.includes(" ") &&
+            !slashQuery.includes("\n")
+          ) {
+            onSlashQuery(slashQuery);
+          } else {
+            onSlashQuery(null);
+          }
+        }
       }
-
-      // Extract query after @
-      const query = newValue.slice(lastAtIdx + 1);
-      // Close if user typed a space after query (finished mentioning)
-      if (query.includes(" ") || query.includes("\n")) {
-        onAtQuery(null);
-        return;
-      }
-
-      onAtQuery(query);
     },
-    [onAtQuery],
+    [onAtQuery, onSlashQuery],
   );
 
   const handleFileChange = useCallback(
@@ -261,7 +283,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          placeholder='Start with an idea, or type "@" to mention'
+          placeholder='Start with an idea, type "/" for a skill or "@" to mention'
           aria-label="输入消息"
           rows={1}
           style={{ scrollbarWidth: "none" }}

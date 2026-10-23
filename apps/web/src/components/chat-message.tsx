@@ -3,10 +3,11 @@
 import { motion } from "framer-motion";
 import React, { useMemo } from "react";
 
-import type { ContentBlock, ToolArtifact, ToolBlock } from "@loomic/shared";
+import type { ChoiceBlock, ChoiceOption, ContentBlock, ToolArtifact, ToolBlock } from "@loomic/shared";
 import { ImagePill } from "./chat/image-lightbox";
 import { MarkdownRenderer } from "./chat/markdown-renderer";
 import { MentionPill } from "./chat/mention-pill";
+import { ChoiceBlockView } from "./chat/choice-block-view";
 import { ThinkingBlockView } from "./chat/thinking-block-view";
 import { ToolBlockView } from "./chat/tool-block-view";
 
@@ -24,6 +25,7 @@ type ChatMessageProps = {
   role: "user" | "assistant";
   contentBlocks: ContentBlock[];
   isStreaming?: boolean;
+  onChoiceSelect?: (block: ChoiceBlock, option: ChoiceOption) => void;
 };
 
 /**
@@ -42,6 +44,7 @@ export const ChatMessage = React.memo(
     role,
     contentBlocks,
     isStreaming,
+    onChoiceSelect,
   }: ChatMessageProps) {
     const isUser = role === "user";
 
@@ -53,6 +56,7 @@ export const ChatMessage = React.memo(
       <AssistantMessage
         contentBlocks={contentBlocks}
         isStreaming={isStreaming ?? false}
+        {...(onChoiceSelect ? { onChoiceSelect } : {})}
       />
     );
   },
@@ -62,7 +66,8 @@ export const ChatMessage = React.memo(
     return (
       prev.role === next.role &&
       prev.contentBlocks === next.contentBlocks &&
-      prev.isStreaming === next.isStreaming
+      prev.isStreaming === next.isStreaming &&
+      prev.onChoiceSelect === next.onChoiceSelect
     );
   },
 );
@@ -120,7 +125,7 @@ const UserMessage = React.memo(function UserMessage({
                   kind={
                     (
                       block as {
-                        mentionType: "image-model" | "brand-kit-asset";
+                        mentionType: "image-model" | "brand-kit-asset" | "skill";
                       }
                     ).mentionType
                   }
@@ -153,7 +158,7 @@ const UserMessage = React.memo(function UserMessage({
               kind={
                 (
                   block as {
-                    mentionType: "image-model" | "brand-kit-asset";
+                      mentionType: "image-model" | "brand-kit-asset" | "skill";
                   }
                 ).mentionType
               }
@@ -181,9 +186,11 @@ const UserMessage = React.memo(function UserMessage({
 const AssistantMessage = React.memo(function AssistantMessage({
   contentBlocks,
   isStreaming,
+  onChoiceSelect,
 }: {
   contentBlocks: ContentBlock[];
   isStreaming: boolean;
+  onChoiceSelect?: (block: ChoiceBlock, option: ChoiceOption) => void;
 }) {
   // Find the last text block index for streaming cursor placement
   const lastTextIdx = useMemo(() => {
@@ -200,7 +207,8 @@ const AssistantMessage = React.memo(function AssistantMessage({
         (b) =>
           (b.type === "text" && b.text.length > 0) ||
           b.type === "tool" ||
-          b.type === "thinking",
+          b.type === "thinking" ||
+          b.type === "choice",
       ),
     [contentBlocks],
   );
@@ -258,6 +266,17 @@ const AssistantMessage = React.memo(function AssistantMessage({
         if (block.type === "tool") {
           return (
             <ToolBlockView key={block.toolCallId} block={block} />
+          );
+        }
+
+        if (block.type === "choice") {
+          return (
+            <ChoiceBlockView
+              key={`choice-${block.questionId}-${idx}`}
+              block={block}
+              onSelect={onChoiceSelect}
+              disabled={isStreaming}
+            />
           );
         }
 

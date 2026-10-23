@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useBreakpoint } from "../hooks/use-breakpoint";
 import type {
   ContentBlock,
+  ChoiceBlock,
+  ChoiceOption,
   ImageArtifact,
   ImageGenerationPreference,
   MessageMention,
@@ -116,6 +118,7 @@ export function ChatSidebar({
 
   // ── Mention & attachment state ──
   const [atQuery, setAtQuery] = useState<string | null>(null);
+  const [slashQuery, setSlashQuery] = useState<string | null>(null);
   const [messageMentions, setMessageMentions] = useState<MessageMention[]>([]);
   const [brandKitMentionItems, setBrandKitMentionItems] = useState<
     BrandKitMentionItem[]
@@ -415,6 +418,14 @@ export function ChatSidebar({
               id: mention.id,
               label: mention.label,
             }
+          : mention.mentionType === "skill"
+          ? {
+              type: "mention" as const,
+              mentionType: "skill" as const,
+              id: mention.id,
+              label: mention.label,
+              slug: mention.slug,
+            }
           : {
               type: "mention" as const,
               mentionType: "brand-kit-asset" as const,
@@ -656,7 +667,6 @@ export function ChatSidebar({
     ...(onRequestCanvasImages ? onRequestCanvasImages() : []),
     ...brandKitMentionItems,
     ...imageModelMentionItems,
-    ...skillMentionItems,
   ];
 
   const handleMentionSelect = useCallback(
@@ -715,6 +725,13 @@ export function ChatSidebar({
       ),
     );
   }, []);
+
+  const handleChoiceSelect = useCallback(
+    (_block: ChoiceBlock, option: ChoiceOption) => {
+      void handleSend(`选择：${option.label}`);
+    },
+    [handleSend],
+  );
 
   // ── Auto-send initial prompt ──
   useEffect(() => {
@@ -987,6 +1004,7 @@ export function ChatSidebar({
                   msg.role === "assistant" &&
                   msg === messages[messages.length - 1]
                 }
+                onChoiceSelect={handleChoiceSelect}
               />
             ))
           )}
@@ -1008,6 +1026,18 @@ export function ChatSidebar({
             onClose={() => setAtQuery(null)}
           />
         )}
+        {slashQuery !== null && skillMentionItems.length > 0 && (
+          <MessageMentionPicker
+            items={skillMentionItems}
+            query={slashQuery}
+            onSelect={(item) => {
+              handleMentionSelect(item);
+              chatInputRef.current?.clearSlashQuery();
+              setSlashQuery(null);
+            }}
+            onClose={() => setSlashQuery(null)}
+          />
+        )}
         <ChatInput
           ref={chatInputRef}
           onSend={handleSend}
@@ -1018,6 +1048,7 @@ export function ChatSidebar({
           onRetryAttachment={retryUpload}
           isUploading={isUploading}
           onAtQuery={setAtQuery}
+          onSlashQuery={setSlashQuery}
           mentions={messageMentions}
           onRemoveMention={handleRemoveMention}
           {...(selectedCanvasElements ? { selectedCanvasElements } : {})}

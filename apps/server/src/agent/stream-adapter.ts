@@ -9,7 +9,7 @@ import {
   ToolMessage as ToolMessageClass,
 } from "@langchain/core/messages";
 
-import { imageArtifactSchema, videoArtifactSchema } from "@loomic/shared";
+import { choiceBlockSchema, imageArtifactSchema, videoArtifactSchema } from "@loomic/shared";
 import type { StreamEvent, ToolArtifact } from "@loomic/shared";
 
 import { sanitizeErrorForClient } from "../utils/error-sanitizer.js";
@@ -64,6 +64,7 @@ export async function* adaptDeepAgentStream(
   const seenStartedToolCalls = new Set<string>();
   /** Tracks active sub-agent parent runs so we can detect nested inner tools. */
   const activeSubAgentRuns = new Set<string>();
+  const choiceBuffers = new Map<string, string>();
 
   yield {
     conversationId: options.conversationId,
@@ -141,13 +142,13 @@ export async function* adaptDeepAgentStream(
                     : "";
               if (text) {
                 seenStreamedMessageIds.add(messageId);
-                yield {
-                  type: "message.delta" as const,
-                  runId: options.runId,
+                for (const event of parseChoiceText(
+                  choiceBuffers,
                   messageId,
-                  delta: text,
-                  timestamp: now(),
-                };
+                  text,
+                  options.runId,
+                  now,
+                )) yield event;
               }
             }
           }
@@ -159,13 +160,13 @@ export async function* adaptDeepAgentStream(
         if (!delta) continue;
 
         seenStreamedMessageIds.add(messageId);
-        yield {
-          delta,
+        for (const event of parseChoiceText(
+          choiceBuffers,
           messageId,
-          runId: options.runId,
-          timestamp: now(),
-          type: "message.delta",
-        };
+          delta,
+          options.runId,
+          now,
+        )) yield event;
         continue;
       }
 
@@ -188,13 +189,13 @@ export async function* adaptDeepAgentStream(
           const delta = extractChunkText(msg);
           if (!delta) continue;
 
-          yield {
-            delta,
+          for (const event of parseChoiceText(
+            choiceBuffers,
             messageId,
-            runId: options.runId,
-            timestamp: now(),
-            type: "message.delta",
-          };
+            delta,
+            options.runId,
+            now,
+          )) yield event;
         }
         continue;
       }
@@ -298,11 +299,94 @@ export async function* adaptDeepAgentStream(
     return;
   }
 
+  for (const [messageId, buffered] of choiceBuffers) {
+    if (buffered) {
+      yield {
+        type: "message.delta" as const,
+        runId: options.runId,
+        messageId,
+        delta: buffered,
+        timestamp: now(),
+      };
+    }
+  }
   yield {
     runId: options.runId,
     timestamp: now(),
     type: "run.completed",
   };
+}
+
+const CHOICE_OPEN = "<loomic_choice>";
+const CHOICE_CLOSE = "</loomic_choice>";
+
+function parseChoiceText(
+  buffers: Map<string, string>,
+  messageId: string,
+  delta: string,
+  runId: string,
+  now: () => string,
+): StreamEvent[] {
+  let buffer = (buffers.get(messageId) ?? "") + delta;
+  const events: StreamEvent[] = [];
+
+  while (buffer.length > 0) {
+    const start = buffer.indexOf(CHOICE_OPEN);
+    if (start === -1) {
+      // Hold just enough suffix to detect an opening marker split across chunks.
+      const keep = Math.min(buffer.length, CHOICE_OPEN.length - 1);
+      const safe = buffer.slice(0, buffer.length - keep);
+      if (safe) {
+        events.push({
+          type: "message.delta",
+          runId,
+          messageId,
+          delta: safe,
+          timestamp: now(),
+        });
+      }
+      buffer = buffer.slice(buffer.length - keep);
+      break;
+    }
+
+    if (start > 0) {
+      events.push({
+        type: "message.delta",
+        runId,
+        messageId,
+        delta: buffer.slice(0, start),
+        timestamp: now(),
+      });
+      buffer = buffer.slice(start);
+    }
+
+    const end = buffer.indexOf(CHOICE_CLOSE, CHOICE_OPEN.length);
+    if (end === -1) break;
+    const rawJson = buffer.slice(CHOICE_OPEN.length, end).trim();
+    const parsed = tryParseJson(rawJson);
+    const choice = choiceBlockSchema.safeParse(parsed);
+    if (choice.success) {
+      events.push({
+        type: "choice.created",
+        runId,
+        messageId,
+        choice: choice.data,
+        timestamp: now(),
+      });
+    } else {
+      events.push({
+        type: "message.delta",
+        runId,
+        messageId,
+        delta: buffer.slice(0, end + CHOICE_CLOSE.length),
+        timestamp: now(),
+      });
+    }
+    buffer = buffer.slice(end + CHOICE_CLOSE.length);
+  }
+
+  buffers.set(messageId, buffer);
+  return events;
 }
 
 function canceledEvent(runId: string, now: () => string): StreamEvent {

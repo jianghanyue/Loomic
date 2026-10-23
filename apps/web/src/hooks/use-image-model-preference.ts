@@ -4,7 +4,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import type { ImageGenerationPreference } from "@loomic/shared";
 
 const STORAGE_KEY = "loomic:image-model-preference";
-const DEFAULT_MODEL = "google/nano-banana-2";
+const DEFAULT_MODEL = "openai-official/gpt-image-2.5-flare";
 
 export type ImageModelPreference = ImageGenerationPreference;
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { toolArtifactSchema } from "./artifacts.js";
 import {
   conversationIdSchema,
+  choiceBlockSchema,
   messageIdSchema,
   runIdSchema,
   sessionIdSchema,
@@ -77,6 +78,14 @@ export const thinkingDeltaEventSchema = z.object({
   timestamp: timestampSchema,
 });
 
+export const choiceCreatedEventSchema = z.object({
+  type: z.literal("choice.created"),
+  runId: runIdSchema,
+  messageId: messageIdSchema,
+  choice: choiceBlockSchema,
+  timestamp: timestampSchema,
+});
+
 export const canvasSyncEventSchema = z.object({
   type: z.literal("canvas.sync"),
   runId: runIdSchema,
@@ -109,6 +118,7 @@ export const streamEventSchema = z.discriminatedUnion("type", [
   runStartedEventSchema,
   messageDeltaEventSchema,
   thinkingDeltaEventSchema,
+  choiceCreatedEventSchema,
   toolStartedEventSchema,
   toolCompletedEventSchema,
   runCanceledEventSchema,
