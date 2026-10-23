@@ -24,40 +24,6 @@ import { CanvasFilesPanel } from "../../components/canvas-files-panel";
 import { CanvasLayersPanel } from "../../components/canvas-layers-panel";
 import { CreditHeaderButton } from "../../components/credits/credit-header-button";
 
-function SelectedImageResolution({ image }: { image: CanvasSelectedElement }) {
-  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
-
-  useEffect(() => {
-    setNaturalSize(null);
-    const source = image.dataUrl ?? image.storageUrl;
-    if (!source) return;
-
-    let cancelled = false;
-    const preview = new Image();
-    preview.onload = () => {
-      if (cancelled || preview.naturalWidth <= 0 || preview.naturalHeight <= 0) return;
-      setNaturalSize({ width: preview.naturalWidth, height: preview.naturalHeight });
-    };
-    preview.src = source;
-
-    return () => {
-      cancelled = true;
-    };
-  }, [image.dataUrl, image.storageUrl]);
-
-  const width = Math.round(naturalSize?.width ?? image.width);
-  const height = Math.round(naturalSize?.height ?? image.height);
-
-  return (
-    <div
-      className="flex h-8 items-center rounded-lg border border-border bg-card/75 px-3 text-xs font-medium tabular-nums text-muted-foreground shadow-card backdrop-blur-lg"
-      aria-label={`当前图片分辨率 ${width} × ${height} 像素`}
-    >
-      分辨率 {width} × {height} px
-    </div>
-  );
-}
-
 function CanvasPageContent() {
   const searchParams = useSearchParams();
   const canvasId = searchParams.get("id");
@@ -279,11 +245,6 @@ function CanvasPageContent() {
 
   if (!canvasData || !accessToken) return null;
 
-  const selectedImage =
-    selectedCanvasElements.length === 1 && selectedCanvasElements[0]?.type === "image"
-      ? selectedCanvasElements[0]
-      : null;
-
   return (
     <div className="flex h-screen w-screen overflow-hidden">
       {/* Top-left navigation bar */}
@@ -309,8 +270,7 @@ function CanvasPageContent() {
       {/* Canvas always takes full width; on mobile/tablet, ChatSidebar overlays instead of side-by-side */}
       <div className="flex-1 relative min-w-0 overflow-hidden">
         {/* Credits button — canvas area top-right, NOT chatbar */}
-        <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
-          {selectedImage && <SelectedImageResolution image={selectedImage} />}
+        <div className="absolute top-3 right-3 z-20">
           <CreditHeaderButton />
         </div>
         <CanvasEditor

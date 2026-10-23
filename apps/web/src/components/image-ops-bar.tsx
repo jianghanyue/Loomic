@@ -75,6 +75,43 @@ const BUTTON_ACTIVE = "bg-foreground/[0.08] text-foreground";
 const PANEL =
   "rounded-xl p-1 bg-card/75 backdrop-blur-lg border border-border shadow-card";
 
+function SelectedImageResolution({ image }: { image: CanvasSelectedElement }) {
+  const [naturalSize, setNaturalSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+
+  useEffect(() => {
+    setNaturalSize(null);
+    const source = image.dataUrl ?? image.storageUrl;
+    if (!source) return;
+
+    let cancelled = false;
+    const preview = new Image();
+    preview.onload = () => {
+      if (cancelled || preview.naturalWidth <= 0 || preview.naturalHeight <= 0) return;
+      setNaturalSize({ width: preview.naturalWidth, height: preview.naturalHeight });
+    };
+    preview.src = source;
+
+    return () => {
+      cancelled = true;
+    };
+  }, [image.dataUrl, image.storageUrl]);
+
+  const width = Math.round(naturalSize?.width ?? image.width);
+  const height = Math.round(naturalSize?.height ?? image.height);
+
+  return (
+    <div
+      className="flex h-8 items-center rounded-lg border border-border bg-card/75 px-3 text-xs font-medium tabular-nums text-muted-foreground shadow-card backdrop-blur-lg"
+      aria-label={`当前图片分辨率 ${width} × ${height} 像素`}
+    >
+      分辨率 {width} × {height} px
+    </div>
+  );
+}
+
 /**
  * Quick image operations shown above the canvas when exactly one image is
  * selected. Results are written next to the image by the server; the canvas
@@ -237,6 +274,12 @@ export function ImageOpsBar({
           onChange={setRegion}
         />
       )}
+      <div
+        className="pointer-events-none absolute z-20"
+        style={resolutionPosition(bounds)}
+      >
+        <SelectedImageResolution image={image} />
+      </div>
       <div
         ref={stackRef}
         className="absolute z-20 flex flex-col items-center gap-1.5"
@@ -422,6 +465,22 @@ function toolbarPosition(
       below + size.height <= viewport.height - 72 ? below : HEADER_CLEARANCE;
   }
   return { left: centre - half, top };
+}
+
+/** Place the resolution badge just above the selected image's top-right edge. */
+function resolutionPosition(
+  bounds: ReturnType<typeof useScreenBounds>,
+): React.CSSProperties {
+  if (!bounds) {
+    return { left: "50%", top: HEADER_CLEARANCE, transform: "translateX(-50%)" };
+  }
+  const { rect, viewport } = bounds;
+  const right = Math.min(Math.max(rect.x + rect.width, EDGE), viewport.width - EDGE);
+  return {
+    left: right,
+    top: Math.max(HEADER_CLEARANCE, rect.y - 42),
+    transform: "translateX(-100%)",
+  };
 }
 
 function isRotated(api: any, elementId: string): boolean {
