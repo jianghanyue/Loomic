@@ -29,6 +29,7 @@ import {
   getViewportCenter,
   scaleToFit,
 } from "@/lib/canvas-elements";
+import { isDesktop, pickFiles } from "@/lib/desktop";
 import { deleteProject } from "@/lib/server-api";
 import { useToast } from "@/components/toast";
 import { useCreateProject } from "@/hooks/use-create-project";
@@ -121,11 +122,9 @@ export function CanvasLogoMenu({
     }
   }, [accessToken, projectId, router, confirmingDelete, toastError]);
 
-  const handleFileImport = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file || !excalidrawApi) return;
-
+  const addImageFile = useCallback(
+    (file: File) => {
+      if (!excalidrawApi) return;
       const reader = new FileReader();
       reader.onload = () => {
         const dataURL = reader.result as string;
@@ -164,12 +163,39 @@ export function CanvasLogoMenu({
         img.src = dataURL;
       };
       reader.readAsDataURL(file);
-
-      // Reset input so the same file can be selected again
-      e.target.value = "";
     },
     [excalidrawApi],
   );
+
+  const handleFileImport = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) addImageFile(file);
+      e.target.value = "";
+    },
+    [addImageFile],
+  );
+
+  const handleImportClick = useCallback(async () => {
+    if (isDesktop()) {
+      try {
+        const files = await pickFiles({
+          multiple: false,
+          accept: [".png", ".jpg", ".jpeg", ".webp", ".gif"],
+        });
+        if (files?.[0]) addImageFile(files[0]);
+      } catch (error) {
+        console.warn("Failed to import image:", error);
+        toastError("图片导入失败");
+      }
+      return;
+    }
+    fileInputRef.current?.click();
+  }, [addImageFile, toastError]);
+
+  const handleImportMenuClick = useCallback(() => {
+    void handleImportClick();
+  }, [handleImportClick]);
 
   return (
     <>
@@ -219,7 +245,7 @@ export function CanvasLogoMenu({
 
           {/* Group 3 — Canvas import */}
           <DropdownMenuGroup>
-            <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+            <DropdownMenuItem onClick={handleImportMenuClick}>
               <ImagePlus className="size-4" />
               导入图片
             </DropdownMenuItem>

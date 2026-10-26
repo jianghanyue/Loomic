@@ -10,6 +10,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Separator } from "./ui/separator";
 import { fetchViewer } from "../lib/server-api";
+import { getAuthRedirectUrl } from "../lib/desktop";
 import { getSupabaseBrowserClient } from "../lib/supabase-browser";
 import { LocalPreviewNotice } from "./local-preview-notice";
 
@@ -62,7 +63,7 @@ export function RegisterForm() {
       email: trimmed,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: getAuthRedirectUrl(),
       },
     });
 

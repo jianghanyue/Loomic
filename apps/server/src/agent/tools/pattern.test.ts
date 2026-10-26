@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   createCheckPatternTool,
   createCreatePatternTool,
+  createExportPatternTool,
   createLayoutPatternTool,
 } from "./pattern.js";
 
@@ -59,6 +60,7 @@ function setup(content?: Record<string, any>) {
     create: createCreatePatternTool(deps),
     layout: createLayoutPatternTool(deps),
     check: createCheckPatternTool(deps),
+    exportPattern: createExportPatternTool(deps),
   };
 }
 
@@ -286,6 +288,28 @@ describe("layout_pattern", () => {
     expect((await run(layout, { patternId: "nope", mode: "grid" })).error).toBe(
       "pattern_not_found",
     );
+  });
+});
+
+describe("export_pattern", () => {
+  it("exports the requested aspect-safe size and places a preview", async () => {
+    const { row, create, exportPattern } = setup();
+    const { patternId } = await run(create, baseInput);
+    const result = await run(exportPattern, {
+      patternId,
+      widthPx: 640,
+      format: "png",
+    });
+
+    expect(result.success).toBe(true);
+    expect([result.width, result.height]).toEqual([640, 320]);
+    expect(result.format).toBe("png");
+    expect(row.content.elements).toHaveLength(2);
+    expect(row.content.elements[1].customData).toMatchObject({
+      kind: "pattern-export",
+      widthPx: 640,
+      heightPx: 320,
+    });
   });
 });
 

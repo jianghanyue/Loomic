@@ -1,0 +1,64 @@
+{
+  "name": "A02 · 夜航花园 Night Garden",
+  "repeat": {
+    "type": "half_drop",
+    "widthCm": 64,
+    "heightCm": 64,
+    "dpi": 150
+  },
+  "straightRepeat": {
+    "widthCm": 128,
+    "heightCm": 64
+  },
+  "palette": [
+    "#2b2a33",
+    "#8ea2b5",
+    "#c8b36a",
+    "#68735d",
+    "#e6e0d2"
+  ],
+  "elements": [
+    {
+      "id": "camellia",
+      "widthCm": 17
+    },
+    {
+      "id": "sprig",
+      "widthCm": 10
+    },
+    {
+      "id": "gold-leaf",
+      "widthCm": 7
+    },
+    {
+      "id": "berry",
+      "widthCm": 4
+    },
+    {
+      "id": "moth",
+      "widthCm": 8
+    }
+  ],
+  "requested": {
+    "main": 5,
+    "secondary": 9,
+    "filler": 20
+  },
+  "placed": {
+    "main": 5,
+    "secondary": 6,
+    "filler": 20
+  },
+  "export": {
+    "width": 8192,
+    "height": 4096,
+    "dpi": 162.56
+  },
+  "checks": {
+    "seamless": true,
+    "overlaps": 0,
+    "coveragePercent": 26.33,
+    "unevenness": 0.64,
+    "emptyCells": 0
+  }
+}

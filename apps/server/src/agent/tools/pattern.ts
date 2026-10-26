@@ -18,12 +18,15 @@ import {
   type StoredPattern,
   checkPatternDoc,
   findPatternElement,
+  insertPatternExportPreview,
   loadCanvas,
   measureMotif,
   readPattern,
+  renderPatternExport,
   renderPatternPreview,
   resolveMotifSource,
   saveCanvasState,
+  storePatternExport,
   summarizeReport,
   toTextileDoc,
   upsertPatternElement,
@@ -185,6 +188,48 @@ const checkPatternSchema = z.object({
     .number()
     .optional()
     .describe("Clearance in cm that counts as an overlap (default 0)"),
+});
+
+const exportPatternSchema = z.object({
+  patternId: z
+    .string()
+    .min(1)
+    .describe("Pattern id returned by create_pattern"),
+  widthPx: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      "Exact output width in pixels; height is derived from the repeat ratio when omitted",
+    ),
+  heightPx: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      "Exact output height in pixels; width is derived from the repeat ratio when omitted",
+    ),
+  maxEdgePx: z
+    .number()
+    .int()
+    .positive()
+    .max(16_384)
+    .optional()
+    .describe("Scale the straight repeat to this long edge (maximum 16384px)"),
+  format: z
+    .enum(["png", "tiff"])
+    .optional()
+    .default("png")
+    .describe("PNG for RGBA delivery, TIFF for downstream print conversion"),
+  dpi: z
+    .number()
+    .positive()
+    .optional()
+    .describe(
+      "Override print DPI metadata; pixel dimensions remain authoritative",
+    ),
 });
 
 type ToolDeps = { createUserClient: (accessToken: string) => any };
@@ -456,10 +501,78 @@ export function createCheckPatternTool(deps: ToolDeps) {
   );
 }
 
+export function createExportPatternTool(deps: ToolDeps) {
+  return tool(
+    async (input, config) => {
+      const ctx = contextFrom(config, deps);
+      if (typeof ctx === "string") return ctx;
+      try {
+        const state = await loadCanvas(ctx.client, ctx.canvasId);
+        const element = findPatternElement(state, input.patternId);
+        const pattern = readPattern(element);
+        const doc = await toTextileDoc(pattern, { client: ctx.client, state });
+        const exportResult = await renderPatternExport(doc, {
+          ...(input.widthPx !== undefined ? { widthPx: input.widthPx } : {}),
+          ...(input.heightPx !== undefined ? { heightPx: input.heightPx } : {}),
+          ...(input.maxEdgePx !== undefined
+            ? { maxEdgePx: input.maxEdgePx }
+            : {}),
+          ...(input.dpi !== undefined ? { dpi: input.dpi } : {}),
+          format: input.format,
+        });
+        const ext = input.format === "tiff" ? "tiff" : "png";
+        const originalUrl = await storePatternExport(
+          ctx.client,
+          ctx.canvasId,
+          exportResult.buffer,
+          `${pattern.name}-${exportResult.width}x${exportResult.height}.${ext}`,
+          exportResult.mimeType,
+        );
+        const preview = await renderPatternPreview(doc);
+        const previewElement = await insertPatternExportPreview(
+          state,
+          element,
+          preview,
+          {
+            kind: "pattern-export",
+            patternId: input.patternId,
+            widthPx: exportResult.width,
+            heightPx: exportResult.height,
+            dpi: exportResult.dpi,
+            format: exportResult.format,
+            ...(originalUrl ? { originalUrl } : {}),
+          },
+        );
+        await saveCanvasState(ctx.client, ctx.canvasId, state);
+        return JSON.stringify({
+          success: true,
+          patternId: input.patternId,
+          previewElementId: previewElement?.id,
+          width: exportResult.width,
+          height: exportResult.height,
+          dpi: exportResult.dpi,
+          format: exportResult.format,
+          ...(originalUrl ? { originalUrl } : {}),
+          summary: `Exported ${exportResult.width}×${exportResult.height}px ${exportResult.format.toUpperCase()} at ${Math.round(exportResult.dpi)} dpi. A preview was placed beside the pattern.${originalUrl ? " The full-size file is stored in project assets." : " Storage is not configured in this environment, so only the preview was placed."}`,
+        });
+      } catch (err) {
+        return errorResult(err);
+      }
+    },
+    {
+      name: "export_pattern",
+      description:
+        "Render a checked textile pattern at an exact pixel size or long edge up to 16384px, store the full-size PNG/TIFF in project assets, and place a lightweight preview on the canvas. Use after check_pattern passes.",
+      schema: exportPatternSchema,
+    },
+  );
+}
+
 export function createPatternTools(deps: ToolDeps) {
   return [
     createCreatePatternTool(deps),
     createLayoutPatternTool(deps),
     createCheckPatternTool(deps),
+    createExportPatternTool(deps),
   ];
 }

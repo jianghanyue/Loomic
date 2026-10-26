@@ -1,14 +1,18 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { type SupabaseClient, createClient } from "@supabase/supabase-js";
 
 import type { Database } from "@loomic/shared";
+import { getDesktopRuntimeConfig } from "./desktop";
 
 let client: SupabaseClient<Database> | null = null;
 
 export function getSupabaseBrowserClient(): SupabaseClient<Database> {
   if (client) return client;
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const desktopConfig = getDesktopRuntimeConfig();
+  const url =
+    desktopConfig?.supabaseUrl ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey =
+    desktopConfig?.supabaseAnonKey ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !anonKey) {
     throw new Error(

@@ -22,6 +22,8 @@ supabase/.temp/
 /build
 **/dist
 **/.turbo
+apps/desktop/renderer/
+apps/desktop/release/
 
 # misc
 .DS_Store

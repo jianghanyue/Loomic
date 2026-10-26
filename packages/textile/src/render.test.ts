@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   encodeTile,
+  exportPixelSize,
   parseHexColor,
   renderRepeatPreview,
   renderTile,
+  renderTileLarge,
   rollTile,
   tilePixelSize,
 } from "./render.js";
@@ -32,6 +34,37 @@ describe("tilePixelSize", () => {
       width: 2000,
       height: 500,
     });
+  });
+});
+
+describe("large export", () => {
+  it("derives an aspect-safe 16K long-edge size", () => {
+    expect(
+      exportPixelSize(doc({ repeat: repeat("block", 10, 5) }), {
+        maxEdgePx: 16_384,
+      }),
+    ).toMatchObject({ width: 16_384, height: 8_192 });
+  });
+
+  it("renders a requested size without allocating a raw tile", async () => {
+    const out = await renderTileLarge(
+      doc({
+        repeat: repeat("block", 10, 5),
+        placements: [{ motifId: "square", x: 0, y: 0 }],
+      }),
+      { widthPx: 640, format: "png" },
+    );
+    expect([out.width, out.height]).toEqual([640, 320]);
+    expect(out.buffer.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+  });
+
+  it("rejects an aspect ratio that would stretch the repeat", () => {
+    expect(() =>
+      exportPixelSize(doc({ repeat: repeat("block", 10, 5) }), {
+        widthPx: 640,
+        heightPx: 640,
+      }),
+    ).toThrow(/aspect ratio/);
   });
 });
 

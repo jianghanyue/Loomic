@@ -233,7 +233,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   });
 
   app.addHook("onRequest", async (request, reply) => {
-    const corsResult = evaluateCors(request, env.webOrigin);
+    const corsResult = evaluateCors(request, env.webOrigin, env.desktopOrigins);
 
     if (!corsResult.allowed) {
       return reply.code(403).send({
@@ -354,7 +354,11 @@ type CorsResult = {
   isPreflight: boolean;
 };
 
-function evaluateCors(request: FastifyRequest, webOrigin: string): CorsResult {
+function evaluateCors(
+  request: FastifyRequest,
+  webOrigin: string,
+  desktopOrigins: string[] = [],
+): CorsResult {
   const origin = request.headers.origin;
   const isPreflight =
     request.method === "OPTIONS" &&
@@ -369,7 +373,7 @@ function evaluateCors(request: FastifyRequest, webOrigin: string): CorsResult {
     };
   }
 
-  if (origin === webOrigin) {
+  if (origin === webOrigin || desktopOrigins.includes(origin)) {
     return {
       allowed: true,
       allowOrigin: origin,

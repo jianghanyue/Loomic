@@ -253,6 +253,28 @@ This starts all services simultaneously:
 
 Open http://localhost:3000 and start creating!
 
+### Desktop MVP (Electron)
+
+The Phase 0 desktop shell reuses the static Next.js export and connects to the
+same Fastify API and WebSocket server:
+
+```bash
+pnpm dev:desktop
+```
+
+Set `LOOMIC_DESKTOP_API_URL` when the desktop app should use an API other than
+the local default (`http://localhost:3001`). For Google OAuth, add
+`loomic://auth/callback` to the Supabase project's allowed redirect URLs.
+
+Build a local installer for the current platform with:
+
+```bash
+pnpm package:desktop
+```
+
+Platform-specific packaging, signing secrets, and the GitHub release workflow
+are documented in [docs/tech/desktop-release.md](docs/tech/desktop-release.md).
+
 ---
 
 ## ☁️ Deployment

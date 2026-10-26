@@ -1,0 +1,40 @@
+{
+  "name": "@loomic/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Loomic desktop creative workspace",
+  "author": {
+    "name": "Loomic",
+    "email": "caokaijun2005-arch@users.noreply.github.com"
+  },
+  "homepage": "https://github.com/caokaijun2005-arch/Loomic",
+  "desktopName": "com.loomic.desktop",
+  "type": "commonjs",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:renderer": "pnpm --filter @loomic/web build && pnpm sync:renderer",
+    "sync:renderer": "node scripts/copy-renderer.mjs",
+    "set-version": "node scripts/set-version.mjs",
+    "dev": "pnpm build:renderer && pnpm build && electron .",
+    "start": "electron .",
+    "package": "pnpm build:renderer && pnpm build && electron-builder --publish never",
+    "package:mac": "pnpm build:renderer && pnpm build && electron-builder --mac --publish never",
+    "package:win": "pnpm build:renderer && pnpm build && electron-builder --win --publish never",
+    "package:linux": "pnpm build:renderer && pnpm build && electron-builder --linux --publish never",
+    "release": "pnpm build:renderer && pnpm build && electron-builder --publish always",
+    "release:mac": "pnpm build:renderer && pnpm build && electron-builder --mac --publish always",
+    "release:win": "pnpm build:renderer && pnpm build && electron-builder --win --publish always",
+    "release:linux": "pnpm build:renderer && pnpm build && electron-builder --linux --publish always",
+    "test": "pnpm typecheck",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "electron": "45.0.0",
+    "electron-builder": "26.15.3"
+  }
+}

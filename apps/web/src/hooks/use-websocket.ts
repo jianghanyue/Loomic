@@ -58,6 +58,30 @@ export function useWebSocket(
   >(new Map());
   const rpcHandlers = useRef<Map<string, RPCHandler>>(new Map());
 
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimer.current) {
+      clearTimeout(reconnectTimer.current);
+      reconnectTimer.current = null;
+    }
+  }, []);
+
+  const scheduleReconnect = useCallback(
+    (connectFn: () => void, immediate = false) => {
+      if (disposed.current || reconnectTimer.current) return;
+      const delay = immediate
+        ? 0
+        : Math.min(30_000, 1000 * 2 ** reconnectAttempt.current);
+      const attempt = reconnectAttempt.current + 1;
+      reconnectAttempt.current = attempt;
+      console.log(`[ws] scheduling reconnect attempt ${attempt} in ${delay}ms`);
+      reconnectTimer.current = setTimeout(() => {
+        reconnectTimer.current = null;
+        connectFn();
+      }, delay);
+    },
+    [],
+  );
+
   const connect = useCallback(() => {
     const token = getToken();
     if (disposed.current) return;
@@ -74,7 +98,7 @@ export function useWebSocket(
     }
     if (!token) {
       // Token not yet available (auth loading) -- retry shortly
-      reconnectTimer.current = setTimeout(connect, 500);
+      scheduleReconnect(connect, true);
       return;
     }
 
@@ -88,6 +112,7 @@ export function useWebSocket(
 
     ws.onopen = () => {
       console.log("[ws] connected, connectionId:", connectionIdRef.current);
+      clearReconnectTimer();
       setConnected(true);
       reconnectAttempt.current = 0;
     };
@@ -147,23 +172,14 @@ export function useWebSocket(
       }
 
       if (!disposed.current) {
-        const delay = Math.min(
-          30_000,
-          1000 * Math.pow(2, reconnectAttempt.current),
-        );
-        const attempt = reconnectAttempt.current + 1;
-        console.log(
-          `[ws] scheduling reconnect attempt ${attempt} in ${delay}ms (code: ${event.code})`,
-        );
-        reconnectAttempt.current = attempt;
-        reconnectTimer.current = setTimeout(connect, delay);
+        scheduleReconnect(connect);
       }
     };
 
     ws.onerror = () => {
       ws.close();
     };
-  }, [getToken]);
+  }, [clearReconnectTimer, getToken, scheduleReconnect]);
 
   async function handleRpcRequest(ws: WebSocket, req: WsRpcRequest) {
     const handler = rpcHandlers.current.get(req.method);
@@ -206,11 +222,31 @@ export function useWebSocket(
     connect();
     return () => {
       disposed.current = true;
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      clearReconnectTimer();
       wsRef.current?.close();
       wsRef.current = null;
     };
-  }, [connect]);
+  }, [clearReconnectTimer, connect]);
+
+  // A desktop app may lose the API while sleeping or switching networks. The
+  // browser does not always emit a useful WebSocket close in those cases, so
+  // explicitly kick the same reconnect state machine when the network returns
+  // or the page becomes visible again.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const reconnectIfNeeded = () => {
+      if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+        clearReconnectTimer();
+        scheduleReconnect(connect, true);
+      }
+    };
+    window.addEventListener("online", reconnectIfNeeded);
+    document.addEventListener("visibilitychange", reconnectIfNeeded);
+    return () => {
+      window.removeEventListener("online", reconnectIfNeeded);
+      document.removeEventListener("visibilitychange", reconnectIfNeeded);
+    };
+  }, [clearReconnectTimer, connect, scheduleReconnect]);
 
   const sendCommand = useCallback(
     (action: string, payload: Record<string, unknown>): boolean => {

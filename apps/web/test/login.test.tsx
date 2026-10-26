@@ -147,4 +147,24 @@ describe("Login page", () => {
       expect(mockReplace).toHaveBeenCalledWith("/home");
     });
   });
+
+  it("accepts pasted credentials in the desktop login form", async () => {
+    render(
+      <AuthProvider>
+        <LoginPage />
+      </AuthProvider>,
+    );
+
+    const email = await screen.findByLabelText(/email/i);
+    const password = screen.getByLabelText(/password/i);
+    fireEvent.paste(email, {
+      clipboardData: { getData: () => "ultra@example.com" },
+    });
+    fireEvent.paste(password, {
+      clipboardData: { getData: () => "ultra-secret" },
+    });
+
+    expect(email).toHaveValue("ultra@example.com");
+    expect(password).toHaveValue("ultra-secret");
+  });
 });

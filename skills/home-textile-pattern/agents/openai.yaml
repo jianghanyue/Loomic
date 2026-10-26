@@ -1,0 +1,7 @@
+interface:
+  display_name: "家纺连续花型"
+  short_description: "构思、拆分、排布并导出连续花型"
+  brand_color: "#315c5a"
+  default_prompt: "使用 $home-textile-pattern 设计三组家纺连续花型方向，并把选定方向拆成透明元素后排布。"
+policy:
+  allow_implicit_invocation: true

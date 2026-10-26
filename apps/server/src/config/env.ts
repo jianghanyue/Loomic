@@ -5,6 +5,7 @@ export const DEFAULT_AGENT_MODEL = "gpt-4.1";
 export const DEFAULT_GOOGLE_AGENT_MODEL = "gemini-2.5-flash";
 export const DEFAULT_SERVER_PORT = 3001;
 export const DEFAULT_WEB_ORIGIN = "http://localhost:3000";
+export const DEFAULT_DESKTOP_ORIGIN = "app://loomic";
 
 /**
  * Resolve the default agent model based on available provider configuration.
@@ -80,6 +81,7 @@ export type ServerEnv = {
   workerId?: string;
   workerPollIntervalMs?: number;
   workerMaxBatchSize?: number;
+  desktopOrigins: string[];
 };
 
 export function loadServerEnv(
@@ -179,6 +181,8 @@ export function loadServerEnv(
     normalizeOptionalString(source.LEMONSQUEEZY_VARIANT_BUSINESS_YEARLY);
   const skillsRoot =
     overrides.skillsRoot ?? normalizeOptionalString(source.LOOMIC_SKILLS_ROOT);
+  const desktopOrigins =
+    overrides.desktopOrigins ?? parseOrigins(source.LOOMIC_ALLOWED_ORIGINS);
   const comfyuiBaseUrl =
     overrides.comfyuiBaseUrl ?? normalizeOptionalString(source.COMFYUI_BASE_URL);
   const comfyuiEditModel = overrides.comfyuiEditModel ?? normalizeOptionalString(source.COMFYUI_EDIT_MODEL);
@@ -246,6 +250,10 @@ export function loadServerEnv(
     version: overrides.version ?? readServerVersion(),
     webOrigin:
       overrides.webOrigin ?? source.LOOMIC_WEB_ORIGIN ?? DEFAULT_WEB_ORIGIN,
+    desktopOrigins: [
+      DEFAULT_DESKTOP_ORIGIN,
+      ...desktopOrigins.filter((origin) => origin !== DEFAULT_DESKTOP_ORIGIN),
+    ],
     ...(agentFilesRoot ? { agentFilesRoot } : {}),
     ...(googleApiKey ? { googleApiKey } : {}),
     ...(googleApplicationCredentials ? { googleApplicationCredentials } : {}),
@@ -306,6 +314,15 @@ export function loadServerEnv(
     ...(workerPollIntervalMs ? { workerPollIntervalMs } : {}),
     ...(workerMaxBatchSize ? { workerMaxBatchSize } : {}),
   };
+}
+
+function parseOrigins(rawOrigins: string | undefined): string[] {
+  if (!rawOrigins) return [];
+  return rawOrigins
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+    .filter((origin, index, origins) => origins.indexOf(origin) === index);
 }
 
 function parseAgentBackendMode(rawMode: string | undefined): AgentBackendMode {

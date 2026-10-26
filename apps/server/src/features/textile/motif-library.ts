@@ -122,6 +122,26 @@ export const BUILTIN_MOTIFS: Record<string, BuiltinMotif> = {
         `<polygon points="100,4 196,100 100,196 4,100" fill="${outer}"/><polygon points="100,52 148,100 100,148 52,100" fill="${inner}"/>`,
       ),
   },
+  moth: {
+    description: "Symmetric moth accent (wings, body, details)",
+    defaultColors: ["#8ea2b5", "#c8b36a", "#2b2a33"],
+    aspect: 1.35,
+    svg: ([wing, accent, body]) =>
+      wrap(
+        `<g transform="translate(100 135)"><path d="M-8 0 C-70 -90 -98 -50 -78 24 C-60 78 -25 58 -7 15Z" fill="${wing}" stroke="${body}" stroke-width="5"/><path d="M8 0 C70 -90 98 -50 78 24 C60 78 25 58 7 15Z" fill="${wing}" stroke="${body}" stroke-width="5"/><path d="M-7 -3 C-45 -30 -62 -20 -58 4 C-50 27 -28 31 -9 16Z" fill="${accent}" opacity=".9"/><path d="M7 -3 C45 -30 62 -20 58 4 C50 27 28 31 9 16Z" fill="${accent}" opacity=".9"/><ellipse cx="0" cy="12" rx="8" ry="40" fill="${body}"/><path d="M-3 -25 C-20 -52 -28 -58 -38 -60 M3 -25 C20 -52 28 -58 38 -60" stroke="${body}" stroke-width="4" fill="none" stroke-linecap="round"/></g>`,
+        270,
+      ),
+  },
+  berry_cluster: {
+    description: "Small cream berry cluster (berries, stem)",
+    defaultColors: ["#e6e0d2", "#68735d"],
+    aspect: 1,
+    svg: ([berry, stem]) =>
+      wrap(
+        `<path d="M100 180 C100 145 100 115 100 70" stroke="${stem}" stroke-width="8" fill="none"/><g fill="${berry}"><circle cx="75" cy="78" r="18"/><circle cx="100" cy="52" r="18"/><circle cx="125" cy="78" r="18"/><circle cx="82" cy="112" r="18"/><circle cx="118" cy="112" r="18"/></g>`,
+        200,
+      ),
+  },
 };
 
 export function isBuiltinSource(source: string): boolean {

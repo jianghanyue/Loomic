@@ -47,6 +47,7 @@ const CANVAS_WRITING_TOOLS = new Set([
   "manipulate_canvas",
   "create_pattern",
   "layout_pattern",
+  "export_pattern",
   "remove_background",
   "upscale_image",
   "split_layers",

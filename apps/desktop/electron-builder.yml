@@ -1,0 +1,65 @@
+appId: com.loomic.desktop
+productName: Loomic
+asar: true
+compression: maximum
+directories:
+  output: release
+  buildResources: build
+icon: build/icon.png
+files:
+  - dist/**
+  - renderer/**
+  - package.json
+extraMetadata:
+  main: dist/main.js
+artifactName: Loomic-${version}-${os}-${arch}.${ext}
+publish:
+  provider: github
+  owner: caokaijun2005-arch
+  repo: Loomic
+  releaseType: draft
+mac:
+  category: public.app-category.graphics-design
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: true
+  extendInfo:
+    CFBundleURLTypes:
+      - CFBundleURLName: Loomic authentication
+        CFBundleTypeRole: Viewer
+        CFBundleURLSchemes:
+          - loomic
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - arm64
+  artifactName: Loomic-${version}-win-${arch}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+linux:
+  executableName: loomic
+  syncDesktopName: true
+  synopsis: AI creative workspace
+  description: Canvas-based AI creative workspace
+  maintainer: Loomic <caokaijun2005-arch@users.noreply.github.com>
+  category: Graphics
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64

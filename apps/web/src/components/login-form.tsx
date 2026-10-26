@@ -3,13 +3,14 @@
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useState, type ClipboardEvent, type FormEvent } from "react";
 
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Separator } from "./ui/separator";
 import { fetchViewer } from "../lib/server-api";
+import { getAuthRedirectUrl, isDesktop, openExternal } from "../lib/desktop";
 import { getSupabaseBrowserClient } from "../lib/supabase-browser";
 import { LocalPreviewNotice } from "./local-preview-notice";
 
@@ -36,6 +37,15 @@ export function LoginForm({ initialErrorMessage = null }: LoginFormProps) {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(initialErrorMessage);
 
+  function pasteInto(setValue: (value: string) => void) {
+    return (event: ClipboardEvent<HTMLInputElement>) => {
+      const value = event.clipboardData.getData("text");
+      if (!value) return;
+      event.preventDefault();
+      setValue(value);
+    };
+  }
+
   if (process.env.NEXT_PUBLIC_LOOMIC_PREVIEW === "true") {
     return <LocalPreviewNotice />;
   }
@@ -60,7 +70,7 @@ export function LoginForm({ initialErrorMessage = null }: LoginFormProps) {
     const { error: authError } = await supabase.auth.signInWithOtp({
       email: trimmed,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: getAuthRedirectUrl(),
         shouldCreateUser: false,
       },
     });
@@ -109,14 +119,24 @@ export function LoginForm({ initialErrorMessage = null }: LoginFormProps) {
   async function handleGoogle() {
     setError(null);
     const supabase = getSupabaseBrowserClient();
-    const { error: authError } = await supabase.auth.signInWithOAuth({
+    const { data, error: authError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: getAuthRedirectUrl(),
+        ...(isDesktop() ? { skipBrowserRedirect: true } : {}),
       },
     });
     if (authError) {
       setError(authError.message);
+      return;
+    }
+
+    if (isDesktop() && data.url) {
+      try {
+        await openExternal(data.url);
+      } catch {
+        setError("Could not open the browser for Google sign-in.");
+      }
     }
   }
 
@@ -198,6 +218,7 @@ export function LoginForm({ initialErrorMessage = null }: LoginFormProps) {
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onPaste={pasteInto(setEmail)}
                   required
                 />
               </div>
@@ -210,6 +231,7 @@ export function LoginForm({ initialErrorMessage = null }: LoginFormProps) {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    onPaste={pasteInto(setPassword)}
                     required
                   />
                 </div>

@@ -10,6 +10,7 @@ import {
   checkPattern,
   renderRepeatPreview,
   renderTile,
+  renderTileLarge,
   straightRepeatSize,
 } from "@loomic/textile";
 import sharp from "sharp";
@@ -20,12 +21,14 @@ import {
   createElementBase,
   generateId,
 } from "../../agent/tools/canvas-element-helpers.js";
+import { resolveWorkspaceId } from "../../agent/workspace-skills.js";
 import { calculateAutoPlacement } from "../canvas/canvas-element-writer.js";
 import {
-  CanvasError,
   type CanvasClient,
+  CanvasError,
   type CanvasState,
   decodeDataUrl,
+  insertImagesBeside,
   loadCanvas,
   readCanvasImage,
   saveCanvasState,
@@ -59,6 +62,7 @@ export type StoredPattern = {
 const PREVIEW_TILE_PX = 512;
 const PREVIEW_DISPLAY_WIDTH = 560;
 const CHECK_MAX_DPI = 72;
+const PATTERN_ASSETS_BUCKET = "project-assets";
 
 /** Pattern tools report canvas and pattern problems with the same error type. */
 export const PatternError = CanvasError;
@@ -120,7 +124,6 @@ export async function resolveMotifSource(
     `Unsupported motif source for ${spec.id}: ${source.slice(0, 60)}`,
   );
 }
-
 
 /** Fill in heightCm from the motif's aspect ratio so overlap checks are accurate. */
 export async function measureMotif(
@@ -205,6 +208,74 @@ export async function checkPatternDoc(
     dpi: Math.min(doc.repeat.dpi, CHECK_MAX_DPI),
   });
   return checkPattern(doc, tile, gapCm !== undefined ? { gapCm } : {});
+}
+
+export type PatternExportOptions = {
+  widthPx?: number;
+  heightPx?: number;
+  maxEdgePx?: number;
+  dpi?: number;
+  format?: "png" | "tiff";
+};
+
+/** Render a production tile at an explicit pixel size (up to 16K long edge). */
+export async function renderPatternExport(
+  doc: PatternDoc,
+  opts: PatternExportOptions = {},
+) {
+  const rendered = await renderTileLarge(doc, opts);
+  return {
+    buffer: rendered.buffer,
+    width: rendered.width,
+    height: rendered.height,
+    dpi: rendered.dpi,
+    format: rendered.format,
+    mimeType: rendered.format === "tiff" ? "image/tiff" : "image/png",
+  };
+}
+
+/** Store a full-size export outside canvas JSON and return a short-lived URL. */
+export async function storePatternExport(
+  client: CanvasClient,
+  canvasId: string,
+  buffer: Buffer,
+  name: string,
+  mimeType: string,
+): Promise<string | undefined> {
+  const workspaceId = await resolveWorkspaceId(
+    client as unknown as Parameters<typeof resolveWorkspaceId>[0],
+    canvasId,
+  );
+  const bucket = client.storage?.from?.(PATTERN_ASSETS_BUCKET);
+  if (!workspaceId || !bucket || typeof bucket.upload !== "function")
+    return undefined;
+  const safe =
+    name.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "pattern";
+  const path = `${workspaceId}/patterns/${Date.now()}-${safe}`;
+  const { error } = await bucket.upload(path, buffer, {
+    contentType: mimeType,
+    upsert: false,
+  });
+  if (error) return undefined;
+  const signed = await bucket.createSignedUrl(path, 3600);
+  return signed.error ? undefined : signed.data?.signedUrl;
+}
+
+/** Add a downscaled canvas preview while keeping the full-size export in storage. */
+export async function insertPatternExportPreview(
+  state: CanvasState,
+  anchor: CanvasElement,
+  preview: PatternPreview,
+  customData: Record<string, unknown>,
+) {
+  const [created] = await insertImagesBeside(state, anchor, [
+    {
+      buffer: preview.buffer,
+      title: `${String((anchor.customData as { title?: string } | undefined)?.title ?? "花型")} · 导出预览`,
+      customData,
+    },
+  ]);
+  return created;
 }
 
 // ---------------------------------------------------------------------------

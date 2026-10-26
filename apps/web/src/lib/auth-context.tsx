@@ -2,13 +2,14 @@
 
 import type { Session, User } from "@supabase/supabase-js";
 import {
+  type ReactNode,
   createContext,
   useContext,
   useEffect,
   useState,
-  type ReactNode,
 } from "react";
 
+import { subscribeToAuthCallback } from "./desktop";
 import { getSupabaseBrowserClient } from "./supabase-browser";
 
 interface AuthContextValue {
@@ -32,6 +33,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const supabase = getSupabaseBrowserClient();
+    const unsubscribeDesktopAuth = subscribeToAuthCallback((url) => {
+      try {
+        const callbackUrl = new URL(url);
+        const query = callbackUrl.searchParams.toString();
+        window.location.href = `/auth/callback${query ? `?${query}` : ""}`;
+      } catch {
+        window.location.href = "/login?error=auth_callback_invalid_url";
+      }
+    });
 
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
@@ -47,7 +57,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      unsubscribeDesktopAuth?.();
+    };
   }, []);
 
   async function signOut() {

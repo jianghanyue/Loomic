@@ -2,10 +2,14 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { ImageGenerationPreference, VideoGenerationPreference } from "@loomic/shared";
+import type {
+  ImageGenerationPreference,
+  VideoGenerationPreference,
+} from "@loomic/shared";
 
 import type { ReadyAttachment } from "@/hooks/use-image-attachments";
 import { useAuth } from "@/lib/auth-context";
+import { isDesktop } from "@/lib/desktop";
 import { useToast } from "@/components/toast";
 import { ApiAuthError, createProject } from "@/lib/server-api";
 
@@ -95,10 +99,12 @@ export function useCreateProject() {
         sessionStorage.removeItem(INITIAL_AGENT_MODEL_KEY);
       }
 
-      // Open the new tab synchronously within the user gesture so the
-      // browser popup-blocker doesn't intervene. We'll set the real URL
-      // once the API call returns.
-      const newTab = window.open("/loading-preview", "_blank");
+      // Desktop stays in one window. The browser version keeps its existing
+      // new-tab behavior so popup blockers and sessionStorage cloning remain
+      // unchanged there.
+      const newTab = isDesktop()
+        ? null
+        : window.open("/loading-preview", "_blank");
 
       setCreating(true);
       try {
@@ -112,7 +118,7 @@ export function useCreateProject() {
         if (newTab) {
           newTab.location.href = url;
         } else {
-          // Popup was blocked despite sync open — fallback to in-page navigation
+          // Desktop and popup-blocked browsers both use in-page navigation.
           routerRef.current.push(url);
         }
         setCreating(false);

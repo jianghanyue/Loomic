@@ -5,7 +5,11 @@
   "packageManager": "pnpm@10.26.2",
   "scripts": {
     "dev": "turbo run dev",
+    "dev:desktop": "pnpm --filter @loomic/desktop dev",
     "build": "turbo run build",
+    "build:desktop": "pnpm --filter @loomic/desktop build:renderer && pnpm --filter @loomic/desktop build",
+    "package:desktop": "pnpm --filter @loomic/desktop package",
+    "release:desktop": "pnpm --filter @loomic/desktop release",
     "lint": "biome check .",
     "test:workspace": "node --test tests/workspace.test.mjs",
     "test:packages": "turbo run test",
