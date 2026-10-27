@@ -8,7 +8,7 @@ type ExcalidrawEl = any;
 
 export type CanvasLayersPanelProps = {
   // biome-ignore lint/suspicious/noExplicitAny: Excalidraw API has no public type definition
-  excalidrawApi: any;
+  canvasApi: any;
   open: boolean;
   onClose: () => void;
 };
@@ -169,7 +169,7 @@ const LayerRow = memo(function LayerRow({
    Main component
    ================================================================ */
 export function CanvasLayersPanel({
-  excalidrawApi,
+  canvasApi,
   open,
   onClose,
 }: CanvasLayersPanelProps) {
@@ -180,30 +180,30 @@ export function CanvasLayersPanel({
 
   /* -- Refresh elements on open + subscribe to changes -- */
   const refreshElements = useCallback(() => {
-    if (!excalidrawApi) return;
-    const all = excalidrawApi.getSceneElements() as ExcalidrawEl[];
+    if (!canvasApi) return;
+    const all = canvasApi.getSceneElements() as ExcalidrawEl[];
     setElements(all.filter((el: ExcalidrawEl) => !el.isDeleted).reverse());
-    setFiles(excalidrawApi.getFiles() ?? {});
-    const state = excalidrawApi.getAppState();
+    setFiles(canvasApi.getFiles() ?? {});
+    const state = canvasApi.getAppState();
     setSelectedIds(state.selectedElementIds ?? {});
-  }, [excalidrawApi]);
+  }, [canvasApi]);
 
   // Throttle refresh to avoid hammering React state on every drag frame.
   // 100ms gives smooth UI without excessive re-renders during drawing.
   useEffect(() => {
-    if (!open || !excalidrawApi) return;
+    if (!open || !canvasApi) return;
     // Initial refresh is immediate
     refreshElements();
 
     const throttledRefresh = throttle(refreshElements, 100);
-    const unsubscribe = excalidrawApi.onChange(() => {
+    const unsubscribe = canvasApi.onChange(() => {
       throttledRefresh();
     });
     return () => {
       throttledRefresh.cancel();
       if (typeof unsubscribe === "function") unsubscribe();
     };
-  }, [open, excalidrawApi, refreshElements]);
+  }, [open, canvasApi, refreshElements]);
 
   /* -- Escape to close -- */
   useEffect(() => {
@@ -221,11 +221,11 @@ export function CanvasLayersPanel({
   /* -- Select element on canvas -- */
   const selectElement = useCallback(
     (id: string) => {
-      excalidrawApi?.updateScene({
+      canvasApi?.updateScene({
         appState: { selectedElementIds: { [id]: true } },
       });
     },
-    [excalidrawApi],
+    [canvasApi],
   );
 
   if (!open) return null;

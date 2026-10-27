@@ -10,13 +10,13 @@ import { useGenerationErrorHandler } from "../hooks/use-generation-error-handler
 
 type CanvasImageGenPanelProps = {
   accessToken: string;
-  excalidrawApi: any;
+  canvasApi: any;
   onClose: () => void;
 };
 
 export function CanvasImageGenPanel({
   accessToken,
-  excalidrawApi,
+  canvasApi,
   onClose,
 }: CanvasImageGenPanelProps) {
   const [prompt, setPrompt] = useState("");
@@ -35,7 +35,7 @@ export function CanvasImageGenPanel({
     try {
       const result = await generateImageDirect(accessTokenRef.current, prompt.trim());
 
-      if (excalidrawApi) {
+      if (canvasApi) {
         const artifact: ImageArtifact = {
           type: "image",
           url: result.url,
@@ -43,7 +43,7 @@ export function CanvasImageGenPanel({
           width: result.width,
           height: result.height,
         };
-        await insertImageOnCanvas(excalidrawApi, artifact);
+        await insertImageOnCanvas(canvasApi, artifact);
       }
 
       setPrompt("");
@@ -55,7 +55,7 @@ export function CanvasImageGenPanel({
     } finally {
       setLoading(false);
     }
-  }, [prompt, loading, excalidrawApi, handleGenerationError]);
+  }, [prompt, loading, canvasApi, handleGenerationError]);
 
   return (
     <div className="w-80 rounded-xl bg-card shadow-xl border border-border p-4">

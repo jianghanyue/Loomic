@@ -57,8 +57,8 @@ function CanvasPageContent() {
   const [projectName, setProjectName] = useState("Untitled");
   const [selectedCanvasElements, setSelectedCanvasElements] = useState<CanvasSelectedElement[]>([]);
 
-  const excalidrawApiRef = useRef<any>(null);
-  const [excalidrawApi, setExcalidrawApi] = useState<any>(null);
+  const canvasApiRef = useRef<any>(null);
+  const [canvasApi, setCanvasApi] = useState<any>(null);
 
   const signOutRef = useRef(signOut);
   signOutRef.current = signOut;
@@ -81,12 +81,12 @@ function CanvasPageContent() {
   const ws = useWebSocket(getToken);
 
   const handleApiReady = useCallback((api: any) => {
-    excalidrawApiRef.current = api;
-    setExcalidrawApi(api);
+    canvasApiRef.current = api;
+    setCanvasApi(api);
   }, []);
 
   const handleImageGenerated = useCallback((artifact: ImageArtifact) => {
-    const api = excalidrawApiRef.current;
+    const api = canvasApiRef.current;
     if (!api) return;
     insertImageOnCanvas(api, artifact).catch((err) => {
       console.warn("Failed to insert image on canvas:", err);
@@ -94,7 +94,7 @@ function CanvasPageContent() {
   }, []);
 
   const handleVideoGenerated = useCallback((artifact: VideoArtifact) => {
-    const api = excalidrawApiRef.current;
+    const api = canvasApiRef.current;
     if (!api) return;
     insertVideoOnCanvas(api, artifact).catch((err) => {
       console.warn("Failed to insert video on canvas:", err);
@@ -103,7 +103,7 @@ function CanvasPageContent() {
 
   // Must be defined BEFORE useJobFallbackPolling which references it
   const handleCanvasSync = useCallback(async () => {
-    const api = excalidrawApiRef.current;
+    const api = canvasApiRef.current;
     const token = accessTokenRef.current;
     if (!api || !token || !canvasData) return;
     try {
@@ -145,7 +145,7 @@ function CanvasPageContent() {
   );
 
   const handleRequestCanvasImages = useCallback((): CanvasImageItem[] => {
-    const api = excalidrawApiRef.current;
+    const api = canvasApiRef.current;
     if (!api) return [];
     const elements: any[] = api.getSceneElements() ?? [];
     const files: Record<string, any> = api.getFiles() ?? {};
@@ -253,7 +253,7 @@ function CanvasPageContent() {
           accessToken={accessToken}
           projectId={canvasData.projectId}
           canvasId={canvasData.id}
-          excalidrawApi={excalidrawApi}
+          canvasApi={canvasApi}
         />
         <EditableProjectName
           accessToken={accessToken}
@@ -284,18 +284,18 @@ function CanvasPageContent() {
           onSelectionChange={setSelectedCanvasElements}
         />
         <CanvasEmptyHint
-          excalidrawApi={excalidrawApi}
+          canvasApi={canvasApi}
           onOpenChat={handleOpenChat}
         />
         <ImageOpsBar
           accessToken={accessToken}
           canvasId={canvasData.id}
-          excalidrawApi={excalidrawApi}
+          canvasApi={canvasApi}
           selected={selectedCanvasElements}
           onCanvasSync={handleCanvasSync}
         />
         <CanvasBottomBar
-          excalidrawApi={excalidrawApi}
+          canvasApi={canvasApi}
           layersOpen={layersOpen}
           onToggleLayers={handleToggleLayers}
           filesOpen={filesOpen}
@@ -303,12 +303,12 @@ function CanvasPageContent() {
           leftPanelOpen={layersOpen || filesOpen}
         />
         <CanvasLayersPanel
-          excalidrawApi={excalidrawApi}
+          canvasApi={canvasApi}
           open={layersOpen}
           onClose={handleCloseLayers}
         />
         <CanvasFilesPanel
-          excalidrawApi={excalidrawApi}
+          canvasApi={canvasApi}
           open={filesOpen}
           onClose={handleCloseFiles}
         />

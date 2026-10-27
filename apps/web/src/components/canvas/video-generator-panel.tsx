@@ -11,6 +11,7 @@ import {
   resizeVideoGeneratorElement,
   updateVideoGeneratorElement,
 } from "../../lib/canvas-video-generator";
+import { createVideoElement } from "../../lib/canvas-elements";
 import type { VideoModelInfo } from "../../lib/server-api";
 import { fetchVideoModels, generateVideoDirect } from "../../lib/server-api";
 // No longer needs poster frame extraction -- videos use embeddable elements
@@ -19,7 +20,7 @@ type VideoGeneratorPanelProps = {
   elementId: string;
   elementBounds: { x: number; y: number; width: number; height: number };
   data: VideoGeneratorData;
-  excalidrawApi: any;
+  canvasApi: any;
   accessToken: string;
   canvasScrollZoom: { scrollX: number; scrollY: number; zoom: number };
   onClose: () => void;
@@ -42,7 +43,7 @@ export function VideoGeneratorPanel({
   elementId,
   elementBounds,
   data,
-  excalidrawApi,
+  canvasApi,
   accessToken,
   canvasScrollZoom,
   onClose,
@@ -90,7 +91,7 @@ export function VideoGeneratorPanel({
           const fallback = r.models[0];
           if (!fallback) return current;
           const fallbackId = fallback.id;
-          updateVideoGeneratorElement(excalidrawApi, elementId, {
+          updateVideoGeneratorElement(canvasApi, elementId, {
             model: fallbackId,
           });
           return fallbackId;
@@ -102,7 +103,7 @@ export function VideoGeneratorPanel({
     return () => {
       cancelled = true;
     };
-  }, [excalidrawApi, elementId]);
+  }, [canvasApi, elementId]);
 
   // Close dropdowns when clicking outside the panel
   useEffect(() => {
@@ -155,30 +156,30 @@ export function VideoGeneratorPanel({
   const handleAspectRatioChange = useCallback(
     (ratio: string) => {
       setAspectRatio(ratio);
-      resizeVideoGeneratorElement(excalidrawApi, elementId, ratio);
-      updateVideoGeneratorElement(excalidrawApi, elementId, {
+      resizeVideoGeneratorElement(canvasApi, elementId, ratio);
+      updateVideoGeneratorElement(canvasApi, elementId, {
         aspectRatio: ratio,
       });
     },
-    [excalidrawApi, elementId],
+    [canvasApi, elementId],
   );
 
   const handleDurationChange = useCallback(
     (d: number) => {
       setDuration(d);
-      updateVideoGeneratorElement(excalidrawApi, elementId, { duration: d });
+      updateVideoGeneratorElement(canvasApi, elementId, { duration: d });
     },
-    [excalidrawApi, elementId],
+    [canvasApi, elementId],
   );
 
   const handleResolutionChange = useCallback(
     (value: VideoResolution) => {
       setResolution(value);
-      updateVideoGeneratorElement(excalidrawApi, elementId, {
+      updateVideoGeneratorElement(canvasApi, elementId, {
         resolution: value,
       });
     },
-    [excalidrawApi, elementId],
+    [canvasApi, elementId],
   );
 
   const handleModelChange = useCallback(
@@ -199,13 +200,13 @@ export function VideoGeneratorPanel({
       setDuration(nextDuration);
       setResolution(nextResolution);
       setShowModelDropdown(false);
-      updateVideoGeneratorElement(excalidrawApi, elementId, {
+      updateVideoGeneratorElement(canvasApi, elementId, {
         model: m,
         duration: nextDuration,
         resolution: nextResolution,
       });
     },
-    [duration, excalidrawApi, elementId, models, resolution],
+    [duration, canvasApi, elementId, models, resolution],
   );
 
   const handleFrameUpload = useCallback(
@@ -239,7 +240,7 @@ export function VideoGeneratorPanel({
 
     setLoading(true);
     setError(null);
-    updateVideoGeneratorElement(excalidrawApi, elementId, {
+    updateVideoGeneratorElement(canvasApi, elementId, {
       status: "generating",
       prompt: prompt.trim(),
       model,
@@ -268,38 +269,27 @@ export function VideoGeneratorPanel({
       // Check if this generation was cancelled while awaiting
       if (controller.signal.aborted) return;
 
-      // Create embeddable element for inline video playback on canvas.
-      // Dynamic import -- excalidraw is client-only.
-      const { convertToExcalidrawElements } = await import(
-        "@excalidraw/excalidraw"
-      );
       if (controller.signal.aborted) return;
 
-      const newElements = convertToExcalidrawElements([
-        {
-          type: "embeddable",
-          link: result.url,
-          x: elementBounds.x,
-          y: elementBounds.y,
-          width: elementBounds.width,
-          height: elementBounds.height,
-          customData: {
-            isVideo: true,
-            mimeType: result.mimeType,
-            durationSeconds: result.durationSeconds,
-            title: prompt.trim().slice(0, 60),
-            prompt: prompt.trim(),
-          },
-        } as any,
-      ]);
+      const newElements = [createVideoElement({
+        url: result.url,
+        x: elementBounds.x,
+        y: elementBounds.y,
+        width: elementBounds.width,
+        height: elementBounds.height,
+        mimeType: result.mimeType,
+        durationSeconds: result.durationSeconds,
+        title: prompt.trim().slice(0, 60),
+        prompt: prompt.trim(),
+      })];
 
       // Replace generator placeholder with video embeddable element
-      const elements = excalidrawApi
+      const elements = canvasApi
         .getSceneElements()
         .map((el: any) =>
           el.id === elementId ? { ...el, isDeleted: true } : el,
         );
-      excalidrawApi.updateScene({
+      canvasApi.updateScene({
         elements: [...elements, ...newElements],
         captureUpdate: "IMMEDIATELY",
       });
@@ -315,7 +305,7 @@ export function VideoGeneratorPanel({
         setError("视频生成失败，请重试或更换模型。");
       }
       setLoading(false);
-      updateVideoGeneratorElement(excalidrawApi, elementId, {
+      updateVideoGeneratorElement(canvasApi, elementId, {
         status: "error",
         errorMessage: "生成失败",
       });
@@ -329,7 +319,7 @@ export function VideoGeneratorPanel({
     resolution,
     firstFrame,
     lastFrame,
-    excalidrawApi,
+    canvasApi,
     elementId,
     elementBounds,
     onClose,

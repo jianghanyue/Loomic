@@ -7,25 +7,25 @@ import { createVideoGeneratorElement } from "../lib/canvas-video-generator";
 
 type CanvasAIToolbarProps = {
   accessToken: string;
-  excalidrawApi: any;
+  canvasApi: any;
 };
 
 export function CanvasAIToolbar({
   accessToken,
-  excalidrawApi,
+  canvasApi,
 }: CanvasAIToolbarProps) {
   const [activePanel, setActivePanel] = useState<"image" | null>(null);
 
   const handleCreateVideoGenerator = useCallback(() => {
-    if (!excalidrawApi) return;
-    const videoId = createVideoGeneratorElement(excalidrawApi, {
+    if (!canvasApi) return;
+    const videoId = createVideoGeneratorElement(canvasApi, {
       aspectRatio: "16:9",
     });
-    excalidrawApi.updateScene({
+    canvasApi.updateScene({
       appState: { selectedElementIds: { [videoId]: true } },
     });
     setActivePanel(null);
-  }, [excalidrawApi]);
+  }, [canvasApi]);
 
   return (
     <>
@@ -80,7 +80,7 @@ export function CanvasAIToolbar({
         <div className="absolute top-14 right-3 z-50">
           <CanvasImageGenPanel
             accessToken={accessToken}
-            excalidrawApi={excalidrawApi}
+            canvasApi={canvasApi}
             onClose={() => setActivePanel(null)}
           />
         </div>

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 type CanvasEmptyHintProps = {
-  excalidrawApi: any;
+  canvasApi: any;
   onOpenChat: () => void;
 };
 
@@ -13,7 +13,7 @@ type CanvasEmptyHintProps = {
  * chat input textarea.
  */
 export function CanvasEmptyHint({
-  excalidrawApi,
+  canvasApi,
   onOpenChat,
 }: CanvasEmptyHintProps) {
   const [hasElements, setHasElements] = useState(false);
@@ -24,18 +24,18 @@ export function CanvasEmptyHint({
   // any non-deleted elements.
   useEffect(() => {
     function check() {
-      if (!excalidrawApi) {
+      if (!canvasApi) {
         setHasElements(false);
         return;
       }
-      const elements: any[] = excalidrawApi.getSceneElements?.() ?? [];
+      const elements: any[] = canvasApi.getSceneElements?.() ?? [];
       setHasElements(elements.some((el: any) => !el.isDeleted));
     }
 
     check();
     const id = setInterval(check, 500);
     return () => clearInterval(id);
-  }, [excalidrawApi]);
+  }, [canvasApi]);
 
   // Global keydown listener for the `C` shortcut.
   useEffect(() => {

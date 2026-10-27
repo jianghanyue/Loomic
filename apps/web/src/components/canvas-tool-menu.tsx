@@ -84,7 +84,7 @@ const TOOL_LABELS: Record<ToolType, string> = {
 
 type CanvasToolMenuProps = {
   accessToken: string;
-  excalidrawApi: any;
+  canvasApi: any;
   leftPanelOpen?: boolean;
 };
 
@@ -146,7 +146,7 @@ const GeneratingOverlay = memo(function GeneratingOverlay({
   );
 });
 
-export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: CanvasToolMenuProps) {
+export function CanvasToolMenu({ accessToken, canvasApi, leftPanelOpen }: CanvasToolMenuProps) {
   const [activeTool, setActiveTool] = useState<string>("selection");
 
   // Image generator state
@@ -227,9 +227,9 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
   // This fires on every frame during drag / drawing, so we must be very
   // careful to avoid unnecessary state updates that trigger re-renders.
   useEffect(() => {
-    if (!excalidrawApi) return;
+    if (!canvasApi) return;
 
-    const unsubscribe = excalidrawApi.onChange(
+    const unsubscribe = canvasApi.onChange(
       (elements: any[], appState: any) => {
         // --- Tool sync (cheap string comparison, skip if unchanged) ---
         const tool = appState?.activeTool?.type;
@@ -356,25 +356,25 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
     );
 
     return unsubscribe;
-  }, [excalidrawApi, closeAllPanels]);
+  }, [canvasApi, closeAllPanels]);
 
   const handleToolChange = useCallback(
     (tool: ToolType) => {
-      excalidrawApi?.setActiveTool({ type: tool });
+      canvasApi?.setActiveTool({ type: tool });
     },
-    [excalidrawApi],
+    [canvasApi],
   );
 
   const handleCreateImageGenerator = useCallback(() => {
-    if (!excalidrawApi) return;
-    const elementId = createImageGeneratorElement(excalidrawApi);
+    if (!canvasApi) return;
+    const elementId = createImageGeneratorElement(canvasApi);
     // Select the newly created element so onChange recognises it
-    excalidrawApi.updateScene({
+    canvasApi.updateScene({
       appState: { selectedElementIds: { [elementId]: true } },
     });
     setActiveGeneratorId(elementId);
     // Read back the created element to populate initial state
-    const elements = excalidrawApi.getSceneElements();
+    const elements = canvasApi.getSceneElements();
     const el = elements.find((e: any) => e.id === elementId);
     if (el) {
       setGeneratorData(getImageGeneratorData(el));
@@ -385,7 +385,7 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
         height: el.height as number,
       });
     }
-  }, [excalidrawApi]);
+  }, [canvasApi]);
 
   const handleCloseGenerator = useCallback(() => {
     setActiveGeneratorId(null);
@@ -394,16 +394,16 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
   }, []);
 
   const handleCreateVideoGenerator = useCallback(() => {
-    if (!excalidrawApi) return;
-    const videoId = createVideoGeneratorElement(excalidrawApi, {
+    if (!canvasApi) return;
+    const videoId = createVideoGeneratorElement(canvasApi, {
       aspectRatio: "16:9",
     });
-    excalidrawApi.updateScene({
+    canvasApi.updateScene({
       appState: { selectedElementIds: { [videoId]: true } },
     });
     setActiveVideoGenId(videoId);
     // Read back the created element to populate initial state
-    const elements = excalidrawApi.getSceneElements();
+    const elements = canvasApi.getSceneElements();
     const el = elements.find((e: any) => e.id === videoId);
     if (el) {
       setVideoGenData(getVideoGeneratorData(el));
@@ -414,7 +414,7 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
         height: el.height as number,
       });
     }
-  }, [excalidrawApi]);
+  }, [canvasApi]);
 
   const handleCloseVideoGenerator = useCallback(() => {
     setActiveVideoGenId(null);
@@ -512,7 +512,7 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
           elementId={activeGeneratorId}
           elementBounds={generatorBounds}
           data={generatorData}
-          excalidrawApi={excalidrawApi}
+          canvasApi={canvasApi}
           accessToken={accessToken}
           canvasScrollZoom={canvasScrollZoom}
           onClose={handleCloseGenerator}
@@ -525,7 +525,7 @@ export function CanvasToolMenu({ accessToken, excalidrawApi, leftPanelOpen }: Ca
           elementId={activeVideoGenId}
           elementBounds={videoGenBounds}
           data={videoGenData}
-          excalidrawApi={excalidrawApi}
+          canvasApi={canvasApi}
           accessToken={accessToken}
           canvasScrollZoom={canvasScrollZoom}
           onClose={handleCloseVideoGenerator}

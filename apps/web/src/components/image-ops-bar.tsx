@@ -120,13 +120,13 @@ function SelectedImageResolution({ image }: { image: CanvasSelectedElement }) {
 export function ImageOpsBar({
   accessToken,
   canvasId,
-  excalidrawApi,
+  canvasApi,
   selected,
   onCanvasSync,
 }: {
   accessToken: string;
   canvasId: string;
-  excalidrawApi: any;
+  canvasApi: any;
   selected: CanvasSelectedElement[];
   onCanvasSync: () => void | Promise<void>;
 }) {
@@ -160,7 +160,7 @@ export function ImageOpsBar({
     const interval = setInterval(refresh, 15_000);
     return () => { canceled = true; clearInterval(interval); };
   }, [accessToken, imageId]);
-  const bounds = useScreenBounds(excalidrawApi, imageId ?? "");
+  const bounds = useScreenBounds(canvasApi, imageId ?? "");
   const stackRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -209,8 +209,8 @@ export function ImageOpsBar({
       if (!image || running) return;
       setRunning(action.op);
       try {
-        if (excalidrawApi)
-          await saveCanvas(accessToken, canvasId, scenePayload(excalidrawApi));
+        if (canvasApi)
+          await saveCanvas(accessToken, canvasId, scenePayload(canvasApi));
         await runImageOp(accessToken, canvasId, {
           op: action.op,
           elementId: image.id,
@@ -234,7 +234,7 @@ export function ImageOpsBar({
     [
       accessToken,
       canvasId,
-      excalidrawApi,
+      canvasApi,
       exitMode,
       image,
       onCanvasSync,
@@ -249,7 +249,7 @@ export function ImageOpsBar({
     if (
       action.mode === "erase" &&
       image &&
-      isRotated(excalidrawApi, image.id)
+      isRotated(canvasApi, image.id)
     ) {
       toast.error("暂不支持在旋转后的图片上框选擦除区域");
       return;
@@ -268,7 +268,7 @@ export function ImageOpsBar({
     <>
       {mode === "erase" && (
         <RegionPicker
-          excalidrawApi={excalidrawApi}
+          canvasApi={canvasApi}
           elementId={image.id}
           region={region}
           onChange={setRegion}
@@ -494,17 +494,17 @@ function isRotated(api: any, elementId: string): boolean {
  * ((x + scrollX) * zoom, (y + scrollY) * zoom).
  */
 function RegionPicker({
-  excalidrawApi,
+  canvasApi,
   elementId,
   region,
   onChange,
 }: {
-  excalidrawApi: any;
+  canvasApi: any;
   elementId: string;
   region: Rect | null;
   onChange: (region: Rect | null) => void;
 }) {
-  const bounds = useScreenBounds(excalidrawApi, elementId)?.rect ?? null;
+  const bounds = useScreenBounds(canvasApi, elementId)?.rect ?? null;
   const start = useRef<{ x: number; y: number } | null>(null);
 
   if (!bounds) return null;

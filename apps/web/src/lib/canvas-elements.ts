@@ -60,7 +60,7 @@ export function getViewportCenter(appState: {
 /**
  * Create an Excalidraw image element with all required fields.
  */
-export function createExcalidrawImageElement(opts: {
+export function createCanvasImageElement(opts: {
   fileId: string;
   x: number;
   y: number;
@@ -110,6 +110,43 @@ export function createExcalidrawImageElement(opts: {
     };
   }
   return element;
+}
+
+/** Create a persisted video element without relying on a renderer-specific API. */
+export function createVideoElement(opts: {
+  url: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  mimeType?: string;
+  durationSeconds?: number;
+  title?: string;
+  prompt?: string;
+}): Record<string, unknown> {
+  return {
+    type: "embeddable",
+    id: generateId(),
+    x: opts.x,
+    y: opts.y,
+    width: opts.width,
+    height: opts.height,
+    angle: 0,
+    link: opts.url,
+    isDeleted: false,
+    opacity: 100,
+    strokeColor: "#000000",
+    backgroundColor: "#000000",
+    strokeWidth: 1,
+    updated: Date.now(),
+    customData: {
+      isVideo: true,
+      ...(opts.mimeType ? { mimeType: opts.mimeType } : {}),
+      ...(opts.durationSeconds != null ? { durationSeconds: opts.durationSeconds } : {}),
+      ...(opts.title ? { title: opts.title } : {}),
+      ...(opts.prompt ? { prompt: opts.prompt } : {}),
+    },
+  };
 }
 
 /**
@@ -206,7 +243,7 @@ export async function insertImageOnCanvas(
     }
   }
 
-  const element = createExcalidrawImageElement({
+  const element = createCanvasImageElement({
     fileId,
     x,
     y,
@@ -239,9 +276,6 @@ export async function insertVideoOnCanvas(
   },
   artifact: VideoArtifact,
 ): Promise<void> {
-  // Dynamic import — excalidraw is client-only and cannot be imported at module level
-  const { convertToExcalidrawElements } = await import("@excalidraw/excalidraw");
-
   let x: number;
   let y: number;
   let width: number;
@@ -282,23 +316,16 @@ export async function insertVideoOnCanvas(
     }
   }
 
-  const newElements = convertToExcalidrawElements([
-    {
-      type: "embeddable",
-      link: artifact.url,
-      x,
-      y,
-      width,
-      height,
-      customData: {
-        isVideo: true,
-        mimeType: artifact.mimeType,
-        durationSeconds: artifact.durationSeconds,
-        title: artifact.title?.slice(0, 60),
-        prompt: artifact.title,
-      },
-    } as any, // ExcalidrawElementSkeleton includes IframeLikeElement but TS needs a nudge
-  ]);
+  const newElements = [createVideoElement({
+    url: artifact.url,
+    x,
+    y,
+    width,
+    height,
+    mimeType: artifact.mimeType,
+    ...(artifact.durationSeconds != null ? { durationSeconds: artifact.durationSeconds } : {}),
+    ...(artifact.title ? { title: artifact.title.slice(0, 60), prompt: artifact.title } : {}),
+  })];
 
   const existing = api.getSceneElements();
   api.updateScene({

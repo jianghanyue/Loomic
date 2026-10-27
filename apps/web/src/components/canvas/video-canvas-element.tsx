@@ -16,7 +16,7 @@ type VideoCanvasElementProps = {
  * - Hover-to-play: auto-play (muted) on mouse enter, pause on mouse leave
  * - Click-to-toggle: clicking toggles play/pause
  * - Play icon overlay when paused
- * - Stops event propagation so Excalidraw canvas interactions are not affected
+ * - Keeps playback clicks local while allowing the React Flow node to be selected
  */
 export function VideoCanvasElement({
   src,
@@ -63,8 +63,14 @@ export function VideoCanvasElement({
     [playing, play, pause],
   );
 
-  // Prevent Excalidraw from capturing pointer/wheel events on the video area
-  const stopPropagation = useCallback((e: React.SyntheticEvent) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    if (playing) pause();
+    else play();
+  }, [pause, play, playing]);
+
+  const stopWheelPropagation = useCallback((e: React.SyntheticEvent) => {
     e.stopPropagation();
   }, []);
 
@@ -72,13 +78,13 @@ export function VideoCanvasElement({
     <div
       style={{ width, height }}
       className="relative flex items-center justify-center overflow-hidden rounded-lg bg-black"
-      onPointerDown={stopPropagation}
-      onPointerUp={stopPropagation}
-      onPointerMove={stopPropagation}
-      onWheel={stopPropagation}
+      onWheel={stopWheelPropagation}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
     >
       <video
         ref={videoRef}

@@ -9,7 +9,7 @@ type ExcalidrawEl = any;
 
 export type CanvasFilesPanelProps = {
   // biome-ignore lint/suspicious/noExplicitAny: Excalidraw API has no public type definition
-  excalidrawApi: any;
+  canvasApi: any;
   open: boolean;
   onClose: () => void;
 };
@@ -116,16 +116,16 @@ const FileRow = memo(function FileRow({
 });
 
 export function CanvasFilesPanel({
-  excalidrawApi,
+  canvasApi,
   open,
   onClose,
 }: CanvasFilesPanelProps) {
   const [imageFiles, setImageFiles] = useState<ImageFile[]>([]);
 
   const refreshFiles = useCallback(() => {
-    if (!excalidrawApi) return;
-    const allElements = excalidrawApi.getSceneElements() as ExcalidrawEl[];
-    const files: Record<string, any> = excalidrawApi.getFiles() ?? {};
+    if (!canvasApi) return;
+    const allElements = canvasApi.getSceneElements() as ExcalidrawEl[];
+    const files: Record<string, any> = canvasApi.getFiles() ?? {};
     const images: ImageFile[] = [];
     let idx = 0;
     for (const el of allElements) {
@@ -140,19 +140,19 @@ export function CanvasFilesPanel({
       images.push({ id: el.id, name: title, dataURL: file?.dataURL ?? "" });
     }
     setImageFiles(images.reverse());
-  }, [excalidrawApi]);
+  }, [canvasApi]);
 
   // Throttle refresh to avoid excessive re-renders during canvas operations
   useEffect(() => {
-    if (!open || !excalidrawApi) return;
+    if (!open || !canvasApi) return;
     refreshFiles();
     const throttledRefresh = throttle(refreshFiles, 200);
-    const unsubscribe = excalidrawApi.onChange(() => throttledRefresh());
+    const unsubscribe = canvasApi.onChange(() => throttledRefresh());
     return () => {
       throttledRefresh.cancel();
       if (typeof unsubscribe === "function") unsubscribe();
     };
-  }, [open, excalidrawApi, refreshFiles]);
+  }, [open, canvasApi, refreshFiles]);
 
   useEffect(() => {
     if (!open) return;

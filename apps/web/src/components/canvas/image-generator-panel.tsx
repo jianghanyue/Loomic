@@ -13,7 +13,7 @@ import {
   type ImageGeneratorData,
 } from "../../lib/canvas-image-generator";
 import {
-  createExcalidrawImageElement,
+  createCanvasImageElement,
   fetchAsDataURL,
 } from "../../lib/canvas-elements";
 
@@ -21,7 +21,7 @@ type ImageGeneratorPanelProps = {
   elementId: string;
   elementBounds: { x: number; y: number; width: number; height: number };
   data: ImageGeneratorData;
-  excalidrawApi: any;
+  canvasApi: any;
   accessToken: string;
   canvasScrollZoom: { scrollX: number; scrollY: number; zoom: number };
   onClose: () => void;
@@ -44,7 +44,7 @@ export function ImageGeneratorPanel({
   elementId,
   elementBounds,
   data,
-  excalidrawApi,
+  canvasApi,
   accessToken,
   canvasScrollZoom,
   onClose,
@@ -82,7 +82,7 @@ export function ImageGeneratorPanel({
             setModel(fallback.id);
             const nextQuality = fallback.provider === "comfyui" ? "standard" : data.quality;
             setQuality(nextQuality);
-            updateImageGeneratorElement(excalidrawApi, elementId, { model: fallback.id, quality: nextQuality });
+            updateImageGeneratorElement(canvasApi, elementId, { model: fallback.id, quality: nextQuality });
           }
         }
       })
@@ -90,7 +90,7 @@ export function ImageGeneratorPanel({
         console.warn("[image-gen] Failed to fetch models:", err);
       });
     return () => { cancelled = true; };
-  }, [elementId, excalidrawApi]);
+  }, [elementId, canvasApi]);
 
   // Close dropdowns when clicking outside the panel
   useEffect(() => {
@@ -137,21 +137,21 @@ export function ImageGeneratorPanel({
     (ratio: string) => {
       setAspectRatio(ratio);
       setShowRatioDropdown(false);
-      resizeImageGeneratorElement(excalidrawApi, elementId, ratio);
-      updateImageGeneratorElement(excalidrawApi, elementId, {
+      resizeImageGeneratorElement(canvasApi, elementId, ratio);
+      updateImageGeneratorElement(canvasApi, elementId, {
         aspectRatio: ratio,
       });
     },
-    [excalidrawApi, elementId],
+    [canvasApi, elementId],
   );
 
   const handleQualityChange = useCallback(
     (q: string) => {
       setQuality(q);
       setShowQualityDropdown(false);
-      updateImageGeneratorElement(excalidrawApi, elementId, { quality: q });
+      updateImageGeneratorElement(canvasApi, elementId, { quality: q });
     },
-    [excalidrawApi, elementId],
+    [canvasApi, elementId],
   );
 
   const handleModelChange = useCallback(
@@ -163,9 +163,9 @@ export function ImageGeneratorPanel({
         setQuality("standard");
         setRefImages([]);
       }
-      updateImageGeneratorElement(excalidrawApi, elementId, { model: m, ...(local ? { quality: "standard" } : {}) });
+      updateImageGeneratorElement(canvasApi, elementId, { model: m, ...(local ? { quality: "standard" } : {}) });
     },
-    [excalidrawApi, elementId, models],
+    [canvasApi, elementId, models],
   );
 
   const handleGenerate = useCallback(async () => {
@@ -178,7 +178,7 @@ export function ImageGeneratorPanel({
 
     setLoading(true);
     setError(null);
-    updateImageGeneratorElement(excalidrawApi, elementId, {
+    updateImageGeneratorElement(canvasApi, elementId, {
       status: "generating",
       prompt: prompt.trim(),
       model,
@@ -201,7 +201,7 @@ export function ImageGeneratorPanel({
       if (controller.signal.aborted) return;
 
       const fileId = generateId();
-      excalidrawApi.addFiles([
+      canvasApi.addFiles([
         {
           id: fileId,
           dataURL,
@@ -210,7 +210,7 @@ export function ImageGeneratorPanel({
         },
       ]);
 
-      const imageElement = createExcalidrawImageElement({
+      const imageElement = createCanvasImageElement({
         fileId,
         x: elementBounds.x,
         y: elementBounds.y,
@@ -220,13 +220,13 @@ export function ImageGeneratorPanel({
       });
 
       // Replace: delete placeholder, add image
-      const elements = excalidrawApi
+      const elements = canvasApi
         .getSceneElements()
         .map((el: any) => {
           if (el.id === elementId) return { ...el, isDeleted: true };
           return el;
         });
-      excalidrawApi.updateScene({
+      canvasApi.updateScene({
         elements: [...elements, imageElement],
         captureUpdate: "IMMEDIATELY",
       });
@@ -242,7 +242,7 @@ export function ImageGeneratorPanel({
         setError("图片生成失败，请重试或更换模型。");
       }
       setLoading(false);
-      updateImageGeneratorElement(excalidrawApi, elementId, {
+      updateImageGeneratorElement(canvasApi, elementId, {
         status: "error",
         errorMessage: "生成失败",
       });
@@ -253,7 +253,7 @@ export function ImageGeneratorPanel({
     model,
     aspectRatio,
     quality,
-    excalidrawApi,
+    canvasApi,
     elementId,
     elementBounds,
     onClose,

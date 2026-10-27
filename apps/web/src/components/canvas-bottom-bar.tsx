@@ -15,7 +15,7 @@ const ZOOM_STEP = 1.1;
 /* ── Types ── */
 interface CanvasBottomBarProps {
   // biome-ignore lint/suspicious/noExplicitAny: Excalidraw API has no public type definition
-  excalidrawApi: any | null;
+  canvasApi: any | null;
   layersOpen: boolean;
   onToggleLayers: () => void;
   filesOpen: boolean;
@@ -126,7 +126,7 @@ function ElementRow({ el, onSelect }: { el: ExcalidrawEl; onSelect: (id: string)
 /* ================================================================
    Main component
    ================================================================ */
-export function CanvasBottomBar({ excalidrawApi, layersOpen, onToggleLayers, filesOpen, onToggleFiles, leftPanelOpen }: CanvasBottomBarProps) {
+export function CanvasBottomBar({ canvasApi, layersOpen, onToggleLayers, filesOpen, onToggleFiles, leftPanelOpen }: CanvasBottomBarProps) {
   /* ── Zoom state ── */
   const [zoom, setZoom] = useState(1);
   const [zoomMenuOpen, setZoomMenuOpen] = useState(false);
@@ -142,46 +142,46 @@ export function CanvasBottomBar({ excalidrawApi, layersOpen, onToggleLayers, fil
 
   /* ── Sync zoom from excalidraw ── */
   useEffect(() => {
-    if (!excalidrawApi) return;
-    const state = excalidrawApi.getAppState();
+    if (!canvasApi) return;
+    const state = canvasApi.getAppState();
     setZoom(state.zoom.value);
     const initBg = state.viewBackgroundColor ?? "#FFFFFF";
     setBgColor(initBg);
     setHexInput(initBg.replace(/^#/, "").toUpperCase());
 
-    const unsubscribe = excalidrawApi.onChange(() => {
-      const s = excalidrawApi.getAppState();
+    const unsubscribe = canvasApi.onChange(() => {
+      const s = canvasApi.getAppState();
       setZoom(s.zoom.value);
       setBgColor(s.viewBackgroundColor ?? "#FFFFFF");
     });
     return () => { if (typeof unsubscribe === "function") unsubscribe(); };
-  }, [excalidrawApi]);
+  }, [canvasApi]);
 
   /* ── Zoom helpers ── */
   const applyZoom = useCallback((value: number) => {
-    excalidrawApi?.updateScene({ appState: { zoom: { value } } });
-  }, [excalidrawApi]);
+    canvasApi?.updateScene({ appState: { zoom: { value } } });
+  }, [canvasApi]);
 
   const handleZoomIn = useCallback(() => {
-    if (!excalidrawApi) return;
-    applyZoom(Math.min(excalidrawApi.getAppState().zoom.value * ZOOM_STEP, ZOOM_MAX));
-  }, [excalidrawApi, applyZoom]);
+    if (!canvasApi) return;
+    applyZoom(Math.min(canvasApi.getAppState().zoom.value * ZOOM_STEP, ZOOM_MAX));
+  }, [canvasApi, applyZoom]);
 
   const handleZoomOut = useCallback(() => {
-    if (!excalidrawApi) return;
-    applyZoom(Math.max(excalidrawApi.getAppState().zoom.value / ZOOM_STEP, ZOOM_MIN));
-  }, [excalidrawApi, applyZoom]);
+    if (!canvasApi) return;
+    applyZoom(Math.max(canvasApi.getAppState().zoom.value / ZOOM_STEP, ZOOM_MIN));
+  }, [canvasApi, applyZoom]);
 
   const handleZoomTo = useCallback((v: number) => { applyZoom(v); setZoomMenuOpen(false); }, [applyZoom]);
-  const handleFitAll = useCallback(() => { excalidrawApi?.scrollToContent(); setZoomMenuOpen(false); }, [excalidrawApi]);
+  const handleFitAll = useCallback(() => { canvasApi?.scrollToContent(); setZoomMenuOpen(false); }, [canvasApi]);
 
   /* ── Background color helpers ── */
   const applyBgColor = useCallback((hex: string) => {
-    if (!excalidrawApi) return;
-    excalidrawApi.updateScene({ appState: { viewBackgroundColor: hex } });
+    if (!canvasApi) return;
+    canvasApi.updateScene({ appState: { viewBackgroundColor: hex } });
     setBgColor(hex);
     if (hex !== "transparent") setHexInput(hex.replace(/^#/, "").toUpperCase());
-  }, [excalidrawApi]);
+  }, [canvasApi]);
 
   const handleHexInputSubmit = useCallback(() => {
     const raw = hexInput.trim().replace(/^#/, "");

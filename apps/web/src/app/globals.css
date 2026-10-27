@@ -333,100 +333,28 @@
   font-weight: 600;
 }
 
-/* ── Excalidraw UI overrides (aligned with Jaaz) ── */
-
-/* Hide left menu button — replaced by CanvasLogoMenu */
-.excalidraw .App-menu_top__left {
-  display: none !important;
+/* ── React Flow canvas styling ── */
+.react-flow-canvas .react-flow {
+  background: transparent;
 }
-
-/* Hide top-right buttons (Library, Share, Export) */
-.excalidraw .layer-ui__wrapper__top-right {
-  display: none !important;
+.react-flow-canvas .react-flow__renderer,
+.react-flow-canvas .react-flow__viewport {
+  overflow: visible;
 }
-
-/* Hide native top toolbar — replaced by CanvasToolMenu */
-.excalidraw .FixedSideContainer.FixedSideContainer_side_top.App-top-bar {
-  display: none !important;
+.react-flow-canvas .react-flow__node {
+  border-radius: 0.75rem;
+  color: var(--foreground);
 }
-
-/* Hide bottom menu bar */
-.excalidraw .layer-ui__wrapper__footer.App-menu.App-menu_bottom {
-  display: none !important;
+.react-flow-canvas .react-flow__node.selected {
+  z-index: 2;
 }
-.excalidraw .App-bottom-bar {
-  display: none !important;
-}
-
-/* Hide shapes sidebar panel */
-.excalidraw .shapes-section {
-  display: none !important;
-}
-
-/* Text is editable content, not an image: expose native font/size controls when
-   typing or selecting it. Excalidraw handles measurement, binding and undo. */
-.canvas-editor[data-text-controls="true"] .excalidraw .App-menu_top__left {
-  display: flex !important;
-  margin-top: 56px;
-}
-.canvas-editor[data-text-controls="true"] .excalidraw .App-menu_top__left > :not(.selected-shape-actions) {
-  display: none !important;
-}
-
-/* Hide keyboard shortcut labels on tools */
-.excalidraw .ToolIcon__keybinding {
-  display: none !important;
-}
-
-/* Context menu — styled like the floating CanvasToolMenu (bg-card/75, blur,
-   rounded-xl, border-border). Excalidraw's CSS loads after this file, so each
-   rule carries one extra class to win on specificity. */
-.excalidraw.excalidraw-container .popover {
-  /* above the floating toolbars (z-30), below dialogs (z-50) */
-  z-index: 40;
-}
-.excalidraw .popover .context-menu {
-  margin: 0;
-  padding: 0.25rem;
-  border-radius: var(--radius-xl);
+.react-flow-canvas .react-flow__minimap {
   border: 1px solid var(--border);
-  background-color: color-mix(in oklab, var(--card) 85%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
-  font-family: var(--font-sans);
+  border-radius: 0.75rem;
+  overflow: hidden;
 }
-.excalidraw .context-menu .context-menu-item {
-  min-width: 10rem;
-  padding: 0.375rem 0.625rem;
-  border-radius: var(--radius-md);
-  font-size: 0.8125rem;
-  line-height: 1.25rem;
-  color: var(--foreground);
-  transition: background-color 120ms ease;
-}
-.excalidraw .context-menu .context-menu-item:hover {
-  color: var(--foreground);
-  background-color: var(--muted);
-}
-.excalidraw .context-menu .context-menu-item .context-menu-item__label {
-  margin-inline-end: 1.5rem;
-}
-.excalidraw .context-menu .context-menu-item .context-menu-item__shortcut {
-  opacity: 1;
-  font-size: 0.75rem;
-  color: var(--muted-foreground);
-}
-.excalidraw .context-menu .context-menu-item.checkmark::before {
-  left: 0.25rem;
-  color: var(--muted-foreground);
-}
-.excalidraw .context-menu .context-menu-item.dangerous .context-menu-item__label,
-.excalidraw .context-menu .context-menu-item:hover.dangerous .context-menu-item__label {
-  color: var(--destructive);
-}
-.excalidraw .context-menu .context-menu-item:hover.dangerous {
-  background-color: color-mix(in oklab, var(--destructive) 10%, transparent);
+.react-flow-canvas .react-flow__attribution {
+  display: none;
 }
 .excalidraw .context-menu .context-menu-item-separator {
   margin: 0.25rem 0.375rem;
