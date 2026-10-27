@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import type { ToolBlock } from "@loomic/shared";
+import type { ImageArtifact, ToolBlock } from "@loomic/shared";
 import { isDesktop, saveUrl } from "@/lib/desktop";
 import { ChatImage } from "./image-lightbox";
 import {
@@ -161,9 +161,7 @@ export const ToolBlockView = React.memo(function ToolBlockView({
     config.showCard && isCompleted && (block.outputSummary || hasOutput);
 
   // Extract artifacts for generate_image / generate_video inline preview
-  const imageArtifact = block.artifacts?.find(
-    (a: { type: string }) => a.type === "image",
-  );
+  const imageArtifact = block.artifacts?.find((a) => a.type === "image");
   const isImageTool = block.toolName === "generate_image";
   const isVideoTool = block.toolName === "generate_video";
   const isMediaTool = isImageTool || isVideoTool;
@@ -407,7 +405,7 @@ const ImageArtifactCard = React.memo(function ImageArtifactCard({
   hasDetails,
   onOpenPanel,
 }: {
-  artifact: { url: string; title?: string; type: string };
+  artifact: ImageArtifact;
   cardTitle: string;
   modelName: string | undefined;
   hasDetails: boolean;
@@ -624,16 +622,15 @@ function ToolDetailPanel({
                 附件
               </div>
               <div className="flex flex-wrap gap-2">
-                {block.artifacts.map(
-                  (artifact: { type: string; url: string; title?: string }) =>
-                    artifact.type === "image" ? (
-                      <ChatImage
-                        key={artifact.url}
-                        src={artifact.url}
-                        alt={artifact.title ?? "Generated image"}
-                        className="max-w-[200px] rounded-lg border border-border"
-                      />
-                    ) : null,
+                {block.artifacts.map((artifact) =>
+                  artifact.type === "image" ? (
+                    <ChatImage
+                      key={artifact.url}
+                      src={artifact.url}
+                      alt={artifact.title ?? "Generated image"}
+                      className="max-w-[200px] rounded-lg border border-border"
+                    />
+                  ) : null,
                 )}
               </div>
             </div>

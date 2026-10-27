@@ -1,20 +1,33 @@
-import type { BaseCheckpointSaver, BaseStore } from "@langchain/langgraph-checkpoint";
+import type {
+  BaseCheckpointSaver,
+  BaseStore,
+} from "@langchain/langgraph-checkpoint";
 import type { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatVertexAI } from "@langchain/google-vertexai";
 import { ChatOpenAI } from "@langchain/openai";
 import { createDeepAgent } from "deepagents";
 
-import { DEFAULT_AGENT_MODEL, DEFAULT_GOOGLE_AGENT_MODEL, type ServerEnv } from "../config/env.js";
+import {
+  DEFAULT_AGENT_MODEL,
+  DEFAULT_GOOGLE_AGENT_MODEL,
+  type ServerEnv,
+} from "../config/env.js";
 import { comfyFromEnv } from "../features/image-ops/context.js";
 import type { ConnectionManager } from "../ws/connection-manager.js";
-import { createAgentBackend, type AgentBackendResult } from "./backends/index.js";
+import {
+  createAgentBackend,
+  type AgentBackendResult,
+} from "./backends/index.js";
 import { LOOMIC_SYSTEM_PROMPT } from "./prompts/loomic-main.js";
-import { createVideoSubAgent } from "./sub-agents.js";
+import { createTextileSubAgent, createVideoSubAgent } from "./sub-agents.js";
 import { resolveChatConnection } from "./model-connection.js";
 import { imageMessageMiddleware } from "./image-messages.js";
 import { createMainAgentTools } from "./tools/index.js";
-import type { PersistImageFn, SubmitImageJobFn } from "./tools/image-generate.js";
+import type {
+  PersistImageFn,
+  SubmitImageJobFn,
+} from "./tools/image-generate.js";
 import type { SubmitVideoJobFn } from "./tools/video-generate.js";
 import type { WorkspaceSkillEntry } from "./workspace-skills.js";
 
@@ -102,24 +115,56 @@ export function createLoomicDeepAgent(options: {
     systemPrompt += `\n\n## Skills\n\nThe following skills are enabled in this workspace:\n${skillsList}`;
   }
 
+  // Bundled domain skills are available from the read-only /skills route even
+  // when a workspace has not installed them into Supabase yet. Keep this
+  // router in the main prompt so textile requests are handed off instead of
+  // being treated as generic image prompts.
+  systemPrompt +=
+    "\n\n## Domain skill routing\n\nFor jacquard, brocade, damask, yunjin, woven swatches, seamless textile repeats, upholstery, bedding, curtains or other textile-pattern work, delegate to the `textile_design` specialist. It has the bundled skills `/skills/jacquard-textile-prompt/` and `/skills/home-textile-pattern/`. If you handle a small textile request directly, read the relevant SKILL.md first and preserve its concept-versus-production boundary.";
+
+  const textileComfy = comfyFromEnv(options.env);
+
   return createDeepAgent({
     middleware: [imageMessageMiddleware],
     backend: backendResult.factory,
     ...(options.checkpointer ? { checkpointer: options.checkpointer } : {}),
     model: resolvedModel,
     name: "loomic",
+    // Expose the bundled skill catalog to DeepAgents' SkillsMiddleware. The
+    // backend already mounts this directory at /skills/; declaring it here
+    // makes the agent discover and read SKILL.md files instead of treating
+    // them as an unreferenced filesystem directory.
+    skills: ["/skills/"],
     ...(options.store ? { store: options.store } : {}),
-    subagents: [createVideoSubAgent()],
+    subagents: [
+      createVideoSubAgent(),
+      createTextileSubAgent({
+        createUserClient,
+        ...(textileComfy ? { comfy: textileComfy } : {}),
+        ...(options.persistImage ? { persistImage: options.persistImage } : {}),
+        ...(options.submitImageJob
+          ? { submitImageJob: options.submitImageJob }
+          : {}),
+      }),
+    ],
     systemPrompt,
     tools: createMainAgentTools(backendResult.factory, {
       createUserClient,
       ...(options.brandKitId != null ? { brandKitId: options.brandKitId } : {}),
-      ...(options.connectionManager ? { connectionManager: options.connectionManager } : {}),
+      ...(options.connectionManager
+        ? { connectionManager: options.connectionManager }
+        : {}),
       ...(options.persistImage ? { persistImage: options.persistImage } : {}),
-      ...(backendResult.sandboxDir ? { sandboxDir: backendResult.sandboxDir } : {}),
+      ...(backendResult.sandboxDir
+        ? { sandboxDir: backendResult.sandboxDir }
+        : {}),
 
-      ...(options.submitImageJob ? { submitImageJob: options.submitImageJob } : {}),
-      ...(options.submitVideoJob ? { submitVideoJob: options.submitVideoJob } : {}),
+      ...(options.submitImageJob
+        ? { submitImageJob: options.submitImageJob }
+        : {}),
+      ...(options.submitVideoJob
+        ? { submitVideoJob: options.submitVideoJob }
+        : {}),
       comfy: comfyFromEnv(options.env),
     }),
   });
@@ -134,7 +179,10 @@ export function createLoomicDeepAgent(options: {
  * - `google` — uses ChatGoogleGenerativeAI (Google AI Studio, API Key) or
  *   ChatVertexAI (Vertex AI, service account) depending on available config.
  */
-export function createStreamingChatModel(specifier: string, env: ServerEnv): BaseLanguageModel {
+export function createStreamingChatModel(
+  specifier: string,
+  env: ServerEnv,
+): BaseLanguageModel {
   const colonIdx = specifier.indexOf(":");
   let provider = colonIdx > 0 ? specifier.slice(0, colonIdx) : "openai";
   let modelName = colonIdx > 0 ? specifier.slice(colonIdx + 1) : specifier;
@@ -145,12 +193,16 @@ export function createStreamingChatModel(specifier: string, env: ServerEnv): Bas
 
   // Provider availability fallback
   if (provider === "google" && !hasGoogle) {
-    console.warn(`[model] Google unavailable (no GOOGLE_API_KEY or Vertex AI config), falling back to OpenAI for: ${specifier}`);
+    console.warn(
+      `[model] Google unavailable (no GOOGLE_API_KEY or Vertex AI config), falling back to OpenAI for: ${specifier}`,
+    );
     provider = "openai";
     modelName = DEFAULT_AGENT_MODEL;
   }
   if (provider === "openai" && !env.openAIApiKey && hasGoogle) {
-    console.warn(`[model] OpenAI unavailable (no OPENAI_API_KEY), falling back to Google for: ${specifier}`);
+    console.warn(
+      `[model] OpenAI unavailable (no OPENAI_API_KEY), falling back to Google for: ${specifier}`,
+    );
     provider = "google";
     modelName = DEFAULT_GOOGLE_AGENT_MODEL;
   }
@@ -161,7 +213,9 @@ export function createStreamingChatModel(specifier: string, env: ServerEnv): Bas
       if (hasVertexAI) {
         const vertexProject = env.googleVertexProject!;
         const vertexLocation = env.googleVertexLocation!;
-        console.log(`[model] Using Vertex AI for: ${modelName} (project=${vertexProject}, location=${vertexLocation})`);
+        console.log(
+          `[model] Using Vertex AI for: ${modelName} (project=${vertexProject}, location=${vertexLocation})`,
+        );
         return new ChatVertexAI({
           model: modelName,
           location: vertexLocation,
@@ -190,7 +244,9 @@ export function createStreamingChatModel(specifier: string, env: ServerEnv): Bas
         streamUsage: false,
         // Preserve the previous non-reasoning chat route's latency budget with
         // the lowest supported effort (6.1 Sol does not accept `none`).
-        ...(modelName === "gpt-6.1-sol" ? { reasoning: { effort: "low" as const } } : {}),
+        ...(modelName === "gpt-6.1-sol"
+          ? { reasoning: { effort: "low" as const } }
+          : {}),
         // GPT-6 tool calling requires Responses (Astra always; Sol/Luna when reasoning).
         ...(modelName.startsWith("gpt-6-") || modelName.startsWith("gpt-6.")
           ? { useResponsesApi: true }

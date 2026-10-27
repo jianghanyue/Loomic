@@ -47,6 +47,7 @@ function createMockWs(): WebSocketHandle {
     cancelRun: vi.fn(),
     onEvent: vi.fn(() => () => {}),
     registerRPC: vi.fn(() => () => {}),
+    resumeCanvas: vi.fn(),
   };
 }
 
@@ -104,9 +105,7 @@ describe("ChatSidebar", () => {
       />,
     );
 
-    const input = await screen.findByPlaceholderText(
-      /start with an idea/i,
-    );
+    const input = await screen.findByPlaceholderText(/start with an idea/i);
     await userEvent.type(input, "hello loom{Enter}");
 
     await waitFor(() =>

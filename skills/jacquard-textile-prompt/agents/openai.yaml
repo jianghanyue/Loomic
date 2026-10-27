@@ -1,0 +1,7 @@
+interface:
+  display_name: "提花纺织提示词"
+  short_description: "生成提花生图提示词与生产前检查单"
+  brand_color: "#5B4B8A"
+  default_prompt: "使用 $jacquard-textile-prompt 为这款提花面料生成三组方向、模型适配 prompt 和 CAD 交接检查单。"
+policy:
+  allow_implicit_invocation: true

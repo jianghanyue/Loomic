@@ -29,7 +29,11 @@ import { useVideoModelPreference } from "../hooks/use-video-model-preference";
 import type { WebSocketHandle } from "../hooks/use-websocket";
 import { fetchBrandKit } from "../lib/brand-kit-api";
 import { claimDailyCredits } from "../lib/credits-api";
-import { fetchImageModels, fetchWorkspaceSkills, saveMessage } from "../lib/server-api";
+import {
+  fetchImageModels,
+  fetchWorkspaceSkills,
+  saveMessage,
+} from "../lib/server-api";
 import type { CanvasSelectedElement } from "./canvas-editor";
 import {
   type BrandKitMentionItem,
@@ -239,7 +243,9 @@ export function ChatSidebar({
         document.removeEventListener("touchcancel", handleTouchEnd);
       };
 
-      document.addEventListener("touchmove", handleTouchMove, { passive: false });
+      document.addEventListener("touchmove", handleTouchMove, {
+        passive: false,
+      });
       document.addEventListener("touchend", handleTouchEnd);
       document.addEventListener("touchcancel", handleTouchEnd);
     },
@@ -310,7 +316,9 @@ export function ChatSidebar({
         if (cancelled) return;
         const allSkills = data.skills ?? [];
         const enabledSkills = allSkills.filter((s) => s.enabled);
-        console.log(`[chat-sidebar] Workspace skills loaded: ${allSkills.length} total, ${enabledSkills.length} enabled`);
+        console.log(
+          `[chat-sidebar] Workspace skills loaded: ${allSkills.length} total, ${enabledSkills.length} enabled`,
+        );
         setSkillMentionItems(
           enabledSkills.map((s) => ({
             kind: "skill" as const,
@@ -343,7 +351,7 @@ export function ChatSidebar({
       .then((kit) => {
         if (cancelled) return;
         setBrandKitMentionItems(
-          kit.assets.map((asset: { id: string; display_name: string; asset_type: string; text_content?: string; file_url?: string }) => ({
+          kit.assets.map((asset) => ({
             kind: "brand-kit-asset" as const,
             id: asset.id,
             label: asset.display_name,
@@ -424,26 +432,26 @@ export function ChatSidebar({
               label: mention.label,
             }
           : mention.mentionType === "skill"
-          ? {
-              type: "mention" as const,
-              mentionType: "skill" as const,
-              id: mention.id,
-              label: mention.label,
-              slug: mention.slug,
-            }
-          : {
-              type: "mention" as const,
-              mentionType: "brand-kit-asset" as const,
-              id: mention.id,
-              label: mention.label,
-              assetType: mention.assetType,
-              ...(mention.textContent !== undefined
-                ? { textContent: mention.textContent }
-                : {}),
-              ...(mention.fileUrl !== undefined
-                ? { fileUrl: mention.fileUrl }
-                : {}),
-            },
+            ? {
+                type: "mention" as const,
+                mentionType: "skill" as const,
+                id: mention.id,
+                label: mention.label,
+                slug: mention.slug,
+              }
+            : {
+                type: "mention" as const,
+                mentionType: "brand-kit-asset" as const,
+                id: mention.id,
+                label: mention.label,
+                assetType: mention.assetType,
+                ...(mention.textContent !== undefined
+                  ? { textContent: mention.textContent }
+                  : {}),
+                ...(mention.fileUrl !== undefined
+                  ? { fileUrl: mention.fileUrl }
+                  : {}),
+              },
       );
       const userMsg = {
         id: `user-${Date.now()}`,
@@ -536,9 +544,11 @@ export function ChatSidebar({
 
           // Fire canvas insertion callbacks for image/video artifacts.
           // Skip if the backend already inserted the element (elementId in output).
-          const backendInserted = event.type === "tool.completed"
-            && event.output
-            && typeof (event.output as Record<string, unknown>).elementId === "string";
+          const backendInserted =
+            event.type === "tool.completed" &&
+            event.output &&
+            typeof (event.output as Record<string, unknown>).elementId ===
+              "string";
           if (
             event.type === "tool.completed" &&
             event.artifacts &&
@@ -689,9 +699,18 @@ export function ChatSidebar({
       setMessageMentions((prev) => {
         let nextMention: MessageMention;
         if (item.kind === "image-model") {
-          nextMention = { mentionType: "image-model", id: item.id, label: item.label };
+          nextMention = {
+            mentionType: "image-model",
+            id: item.id,
+            label: item.label,
+          };
         } else if (item.kind === "skill") {
-          nextMention = { mentionType: "skill", id: item.id, label: item.label, slug: item.slug };
+          nextMention = {
+            mentionType: "skill",
+            id: item.id,
+            label: item.label,
+            slug: item.slug,
+          };
         } else {
           nextMention = {
             mentionType: "brand-kit-asset",
@@ -701,9 +720,7 @@ export function ChatSidebar({
             ...(item.textContent !== undefined
               ? { textContent: item.textContent }
               : {}),
-            ...(item.fileUrl !== undefined
-              ? { fileUrl: item.fileUrl }
-              : {}),
+            ...(item.fileUrl !== undefined ? { fileUrl: item.fileUrl } : {}),
           };
         }
 
@@ -854,9 +871,11 @@ export function ChatSidebar({
 
             // Fire canvas insertion callbacks for artifacts arriving after reconnect.
             // Skip if the backend already inserted the element (elementId in output).
-            const wsBackendInserted = evt.type === "tool.completed"
-              && evt.output
-              && typeof (evt.output as Record<string, unknown>).elementId === "string";
+            const wsBackendInserted =
+              evt.type === "tool.completed" &&
+              evt.output &&
+              typeof (evt.output as Record<string, unknown>).elementId ===
+                "string";
             if (
               evt.type === "tool.completed" &&
               evt.artifacts &&
@@ -991,7 +1010,11 @@ export function ChatSidebar({
           console.error("[chat-sidebar] message area render crashed:", err)
         }
       >
-        <div className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-6 px-4 py-4" aria-live="polite" aria-relevant="additions">
+        <div
+          className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-6 px-4 py-4"
+          aria-live="polite"
+          aria-relevant="additions"
+        >
           {sessionsLoading || messagesLoading ? (
             <div className="flex h-full items-center justify-center">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-border border-t-foreground" />
@@ -1123,9 +1146,7 @@ export function ChatSidebar({
         onTouchStart={handleTouchStart}
         onKeyDown={handleResizeKeyDown}
       />
-      <div className="flex flex-1 flex-col bg-card min-w-0">
-        {panelContent}
-      </div>
+      <div className="flex flex-1 flex-col bg-card min-w-0">{panelContent}</div>
       {creditDialogEl}
     </div>
   );

@@ -33,8 +33,10 @@ export function AgentSection({
       .then((data) => {
         setModels(data.models);
         const ids = data.models.map((m: ModelInfo) => m.id);
-        if (ids.length > 0 && !ids.includes(selectedModel)) {
-          setSelectedModel(ids[0]);
+        if (ids.length > 0) {
+          setSelectedModel((current) =>
+            ids.includes(current) ? current : (ids[0] ?? current),
+          );
         }
       })
       .catch(() => setModels([]))
