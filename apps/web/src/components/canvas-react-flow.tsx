@@ -141,6 +141,27 @@ function boundConnectionIds(element: CanvasElement): { source: string; target: s
   return { source: String(start), target: String(end) };
 }
 
+type ConnectionLike = { source: string; target: string; sourceHandle?: string | null };
+
+function normalizeConnection(connection: ConnectionLike): { source: string; target: string } | null {
+  if (!connection.source || !connection.target || connection.source === connection.target) return null;
+  if (connection.sourceHandle === "target") {
+    return { source: connection.target, target: connection.source };
+  }
+  return { source: connection.source, target: connection.target };
+}
+
+function hasConnectionBetween(elements: CanvasElement[], source: string, target: string): boolean {
+  return elements.some((element) => {
+    const connection = boundConnectionIds(element);
+    if (!connection) return false;
+    return (
+      (connection.source === source && connection.target === target) ||
+      (connection.source === target && connection.target === source)
+    );
+  });
+}
+
 function wouldCreateCycle(elements: CanvasElement[], source: string, target: string): boolean {
   const adjacency = new Map<string, string[]>();
   for (const element of elements) {
@@ -180,8 +201,8 @@ function buildEdges(elements: CanvasElement[]): CanvasEdge[] {
       id: String(element.id),
       source,
       target,
-      sourceHandle: "source-right",
-      targetHandle: "target-left",
+      sourceHandle: "source",
+      targetHandle: "target",
       type: "smoothstep",
       data: { elementId: String(element.id) },
       style: {
@@ -331,14 +352,14 @@ const CanvasFlowNode = memo(function CanvasFlowNode({ id, data, selected }: Node
   return (
     <>
       <Handle
-        id="target-left"
+        id="target"
         type="target"
         position={TARGET_HANDLE.position}
         style={handleOffset("target", TARGET_HANDLE.side)}
         className="!h-3 !w-3 !border-2 !border-background !bg-emerald-500"
       />
       <Handle
-        id="source-right"
+        id="source"
         type="source"
         position={SOURCE_HANDLE.position}
         style={handleOffset("source", SOURCE_HANDLE.side)}
@@ -722,21 +743,23 @@ export function ReactFlowCanvas({
     emit();
   }, [emit, nodesWithCallbacks, pushHistory, setCurrentNodes]);
 
+  const isConnectionAllowed = useCallback((connection: Connection | Edge) => {
+    const pair = normalizeConnection(connection);
+    if (!pair) return false;
+    const source = elementsRef.current.find((element) => String(element.id) === pair.source && !element.isDeleted);
+    const target = elementsRef.current.find((element) => String(element.id) === pair.target && !element.isDeleted);
+    if (!source || !target || isBoundLineElement(source) || isBoundLineElement(target)) return false;
+    if (hasConnectionBetween(elementsRef.current, pair.source, pair.target)) return false;
+    if (wouldCreateCycle(elementsRef.current, pair.source, pair.target)) return false;
+    return true;
+  }, []);
+
   const handleConnect = useCallback((connection: Connection) => {
-    if (!connection.source || !connection.target || connection.source === connection.target) return;
-    if (connection.sourceHandle !== "source-right" || connection.targetHandle !== "target-left") return;
-    const source = elementsRef.current.find((element) => String(element.id) === connection.source && !element.isDeleted);
-    const target = elementsRef.current.find((element) => String(element.id) === connection.target && !element.isDeleted);
-    if (!source || !target || isBoundLineElement(source) || isBoundLineElement(target)) return;
-    const pairKey = [String(source.id), String(target.id)].sort().join("::");
-    const hasExistingConnection = elementsRef.current.some((element) => {
-      if (!isBoundLineElement(element)) return false;
-      const start = bindingFrom(element.startBinding)?.elementId;
-      const end = bindingFrom(element.endBinding)?.elementId;
-      return start && end && [String(start), String(end)].sort().join("::") === pairKey;
-    });
-    if (hasExistingConnection) return;
-    if (wouldCreateCycle(elementsRef.current, String(source.id), String(target.id))) return;
+    const pair = normalizeConnection(connection);
+    if (!pair || !isConnectionAllowed(connection)) return;
+    const source = elementsRef.current.find((element) => String(element.id) === pair.source && !element.isDeleted);
+    const target = elementsRef.current.find((element) => String(element.id) === pair.target && !element.isDeleted);
+    if (!source || !target) return;
 
     const line = createBoundLineElement(source, target, "right", "left");
     const nextElements = elementsRef.current.map((element) => {
@@ -752,7 +775,7 @@ export function ReactFlowCanvas({
     elementsRef.current = [...nextElements, line];
     setCurrentNodes(nodesWithCallbacks(elementsRef.current, filesRef.current, appStateRef.current.selectedElementIds));
     emit();
-  }, [emit, nodesWithCallbacks, pushHistory, setCurrentNodes]);
+  }, [emit, isConnectionAllowed, nodesWithCallbacks, pushHistory, setCurrentNodes]);
 
   const handleSelectionChange = useCallback(({ nodes: selectedNodes, edges: selectedEdges }: { nodes: CanvasNode[]; edges: CanvasEdge[] }) => {
     const selectedIds = selectedIdsFromNodes(selectedNodes);
@@ -804,6 +827,7 @@ export function ReactFlowCanvas({
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
+        isValidConnection={isConnectionAllowed}
         onSelectionChange={handleSelectionChange}
         onMove={handleMove}
         onPaneClick={handlePaneClick}
@@ -811,6 +835,7 @@ export function ReactFlowCanvas({
         fitView={false}
         nodesConnectable
         deleteKeyCode={["Backspace", "Delete"]}
+        connectionRadius={80}
         selectionOnDrag={activeTool === "selection"}
         panOnDrag={activeTool === "hand" ? true : [1, 2]}
         panOnScroll
