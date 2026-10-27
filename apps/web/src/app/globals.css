@@ -353,6 +353,23 @@
   border-radius: 0.75rem;
   overflow: hidden;
 }
+.react-flow-canvas .react-flow__edge .react-flow__edge-path {
+  stroke-dasharray: 10 8;
+  animation: loomic-flow-edge 0.9s linear infinite;
+}
+.react-flow-canvas .react-flow__edge marker path {
+  stroke-dasharray: none;
+}
+@keyframes loomic-flow-edge {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .react-flow-canvas .react-flow__edge .react-flow__edge-path {
+    animation: none;
+  }
+}
 .react-flow-canvas .react-flow__attribution {
   display: none;
 }

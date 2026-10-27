@@ -4,14 +4,21 @@ import "@xyflow/react/dist/style.css";
 
 import {
   Background,
+  Handle,
+  MarkerType,
   MiniMap,
   NodeResizer,
+  Position,
   ReactFlow,
   SelectionMode,
+  applyEdgeChanges,
   applyNodeChanges,
   type Node,
   type NodeChange,
   type NodeProps,
+  type Connection,
+  type Edge,
+  type EdgeChange,
   type ReactFlowInstance,
 } from "@xyflow/react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -64,6 +71,21 @@ type CanvasNodeData = {
 };
 
 type CanvasNode = Node<CanvasNodeData, "canvas-element">;
+type CanvasEdge = Edge<{ elementId: string }>;
+
+type Binding = {
+  elementId?: string;
+  fixedPoint?: unknown;
+};
+
+type HandleSide = "top" | "right" | "bottom" | "left";
+
+const HANDLE_SIDES: Array<{ side: HandleSide; position: Position }> = [
+  { side: "top", position: Position.Top },
+  { side: "right", position: Position.Right },
+  { side: "bottom", position: Position.Bottom },
+  { side: "left", position: Position.Left },
+];
 
 const DEFAULT_ELEMENT_WIDTH = 240;
 const DEFAULT_ELEMENT_HEIGHT = 160;
@@ -73,6 +95,95 @@ function elementSize(element: CanvasElement) {
     width: Math.max(1, Number(element.width) || DEFAULT_ELEMENT_WIDTH),
     height: Math.max(1, Number(element.height) || DEFAULT_ELEMENT_HEIGHT),
   };
+}
+
+function bindingFrom(value: unknown): Binding | null {
+  return typeof value === "object" && value !== null ? value as Binding : null;
+}
+
+function isBoundLineElement(element: CanvasElement) {
+  if (element.type !== "line" && element.type !== "arrow") return false;
+  const start = bindingFrom(element.startBinding);
+  const end = bindingFrom(element.endBinding);
+  return Boolean(start?.elementId && end?.elementId);
+}
+
+function sideFromFixedPoint(binding: Binding | null, fallback: HandleSide): HandleSide {
+  const point = Array.isArray(binding?.fixedPoint) ? binding?.fixedPoint : null;
+  if (!point || point.length < 2) return fallback;
+  const x = Number(point[0]);
+  const y = Number(point[1]);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return fallback;
+  if (Math.abs(x - 0.5) >= Math.abs(y - 0.5)) return x >= 0.5 ? "right" : "left";
+  return y >= 0.5 ? "bottom" : "top";
+}
+
+function fixedPointForSide(side: HandleSide): [number, number] {
+  switch (side) {
+    case "top": return [0.5, 0];
+    case "right": return [1, 0.5];
+    case "left": return [0, 0.5];
+    case "bottom": return [0.5, 1];
+  }
+}
+
+function pointForSide(element: CanvasElement, side: HandleSide) {
+  const x = Number(element.x) || 0;
+  const y = Number(element.y) || 0;
+  const { width, height } = elementSize(element);
+  switch (side) {
+    case "top": return { x: x + width / 2, y };
+    case "right": return { x: x + width, y: y + height / 2 };
+    case "left": return { x, y: y + height / 2 };
+    case "bottom": return { x: x + width / 2, y: y + height };
+  }
+}
+
+function sideFromHandle(handle: string | null | undefined, fallback: HandleSide): HandleSide {
+  const side = handle?.split("-").at(-1);
+  return side === "top" || side === "right" || side === "bottom" || side === "left" ? side : fallback;
+}
+
+function handleOffset(type: "source" | "target", side: HandleSide): React.CSSProperties {
+  const offset = side === "top" || side === "bottom"
+    ? { marginLeft: type === "source" ? 8 : -8 }
+    : { marginTop: type === "source" ? 8 : -8 };
+  return { ...offset, zIndex: 10, pointerEvents: "all" };
+}
+
+function buildEdges(elements: CanvasElement[]): CanvasEdge[] {
+  const activeIds = new Set(elements.filter((element) => !element.isDeleted).map((element) => String(element.id)));
+  const seenPairs = new Set<string>();
+  return elements.flatMap<CanvasEdge>((element) => {
+    if (!isBoundLineElement(element)) return [];
+    const start = bindingFrom(element.startBinding);
+    const end = bindingFrom(element.endBinding);
+    const source = start?.elementId ? String(start.elementId) : "";
+    const target = end?.elementId ? String(end.elementId) : "";
+    if (!source || !target || source === target || !activeIds.has(source) || !activeIds.has(target)) return [];
+    const pairKey = [source, target].sort().join("::");
+    if (seenPairs.has(pairKey)) return [];
+    seenPairs.add(pairKey);
+    const stroke = element.strokeColor ?? "currentColor";
+    const edge: CanvasEdge = {
+      id: String(element.id),
+      source,
+      target,
+      sourceHandle: `source-${sideFromFixedPoint(start, "right")}`,
+      targetHandle: `target-${sideFromFixedPoint(end, "left")}`,
+      type: "smoothstep",
+      data: { elementId: String(element.id) },
+      style: {
+        stroke,
+        strokeWidth: Math.max(1, Number(element.strokeWidth) || 2),
+        strokeDasharray: "10 8",
+        animation: "loomic-flow-edge 0.9s linear infinite",
+      },
+      animated: true,
+    };
+    if (element.type === "arrow") edge.markerEnd = { type: MarkerType.ArrowClosed, color: stroke };
+    return [edge];
+  });
 }
 
 function fileSource(element: CanvasElement, files: Record<string, any>) {
@@ -208,6 +319,26 @@ const CanvasFlowNode = memo(function CanvasFlowNode({ id, data, selected }: Node
 
   return (
     <>
+      {HANDLE_SIDES.map(({ side, position }) => (
+        <Handle
+          key={`target-${side}`}
+          id={`target-${side}`}
+          type="target"
+          position={position}
+          style={handleOffset("target", side)}
+          className="!h-3 !w-3 !border-2 !border-background !bg-emerald-500"
+        />
+      ))}
+      {HANDLE_SIDES.map(({ side, position }) => (
+        <Handle
+          key={`source-${side}`}
+          id={`source-${side}`}
+          type="source"
+          position={position}
+          style={handleOffset("source", side)}
+          className="!h-3 !w-3 !border-2 !border-background !bg-primary"
+        />
+      ))}
       <NodeResizer
         isVisible={selected}
         minWidth={24}
@@ -246,7 +377,7 @@ function makeAppState(
     : Number(input?.zoom) || 1;
   return {
     viewBackgroundColor: typeof input?.viewBackgroundColor === "string" ? input.viewBackgroundColor : "#FFFFFF",
-    gridModeEnabled: input?.gridModeEnabled === true,
+    gridModeEnabled: true,
     currentItemFontFamily: typeof input?.currentItemFontFamily === "number" ? input.currentItemFontFamily : 6,
     currentItemFontSize: typeof input?.currentItemFontSize === "number" ? input.currentItemFontSize : 24,
     selectedElementIds: (input?.selectedElementIds as Record<string, boolean> | undefined) ?? {},
@@ -288,6 +419,37 @@ function createLegacyElement(type: string, x: number, y: number): CanvasElement 
   };
 }
 
+function createBoundLineElement(source: CanvasElement, target: CanvasElement, sourceSide: HandleSide, targetSide: HandleSide): CanvasElement {
+  const start = pointForSide(source, sourceSide);
+  const end = pointForSide(target, targetSide);
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const id = `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`.slice(0, 20);
+  return {
+    ...createLegacyElement("arrow", start.x, start.y),
+    id,
+    x: start.x,
+    y: start.y,
+    width: Math.max(1, Math.abs(dx)),
+    height: Math.max(1, Math.abs(dy)),
+    points: [[0, 0], [dx, dy]],
+    startBinding: {
+      elementId: source.id,
+      focus: 0,
+      gap: 8,
+      fixedPoint: fixedPointForSide(sourceSide),
+    },
+    endBinding: {
+      elementId: target.id,
+      focus: 0,
+      gap: 8,
+      fixedPoint: fixedPointForSide(targetSide),
+    },
+    startArrowhead: null,
+    endArrowhead: "arrow",
+  };
+}
+
 export function ReactFlowCanvas({
   initialContent,
   onApiReady,
@@ -302,7 +464,7 @@ export function ReactFlowCanvas({
   onSelectionChange?: (elements: CanvasElement[]) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const flowRef = useRef<ReactFlowInstance<CanvasNode> | null>(null);
+  const flowRef = useRef<ReactFlowInstance<CanvasNode, CanvasEdge> | null>(null);
   const listenersRef = useRef(new Set<CanvasChangeListener>());
   const elementsRef = useRef<CanvasElement[]>(initialContent.elements ?? []);
   const filesRef = useRef<Record<string, any>>(initialContent.files ?? {});
@@ -312,9 +474,11 @@ export function ReactFlowCanvas({
   const [containerSize, setContainerSize] = useState({ width: 1, height: 1 });
   const [nodes, setNodes] = useState<CanvasNode[]>([]);
   const nodesRef = useRef<CanvasNode[]>([]);
+  const [edges, setEdges] = useState<CanvasEdge[]>([]);
+  const edgesRef = useRef<CanvasEdge[]>([]);
   const [activeTool, setActiveToolState] = useState("selection");
   const [backgroundColor, setBackgroundColor] = useState("#FFFFFF");
-  const [gridEnabled, setGridEnabled] = useState(false);
+  const [gridEnabled, setGridEnabled] = useState(true);
 
   const emit = useCallback(() => {
     const elements = elementsRef.current;
@@ -327,11 +491,14 @@ export function ReactFlowCanvas({
   const setCurrentNodes = useCallback((nextNodes: CanvasNode[]) => {
     nodesRef.current = nextNodes;
     setNodes(nextNodes);
+    const nextEdges = buildEdges(elementsRef.current);
+    edgesRef.current = nextEdges;
+    setEdges(nextEdges);
   }, []);
 
   const buildNodes = useCallback((elements: CanvasElement[], files: Record<string, any>, selectedIds: Record<string, boolean>) => {
     return elements
-      .filter((element) => !element.isDeleted)
+      .filter((element) => !element.isDeleted && !isBoundLineElement(element))
       .map<CanvasNode>((element) => {
         const { width, height } = elementSize(element);
         return {
@@ -534,8 +701,58 @@ export function ReactFlowCanvas({
     emit();
   }, [emit, handleResize, pushHistory, setCurrentNodes]);
 
-  const handleSelectionChange = useCallback(({ nodes: selectedNodes }: { nodes: CanvasNode[] }) => {
-    appStateRef.current = { ...appStateRef.current, selectedElementIds: selectedIdsFromNodes(selectedNodes) };
+  const handleEdgesChange = useCallback((changes: EdgeChange<CanvasEdge>[]) => {
+    if (!changes.length) return;
+    const removedIds = new Set(changes.filter((change) => change.type === "remove").map((change) => change.id));
+    const nextEdges = applyEdgeChanges(changes, edgesRef.current) as CanvasEdge[];
+    edgesRef.current = nextEdges;
+    setEdges(nextEdges);
+    if (!removedIds.size) return;
+    pushHistory();
+    const nextElements = elementsRef.current.map((element) => removedIds.has(String(element.id))
+      ? { ...element, isDeleted: true, updated: Date.now() }
+      : element);
+    elementsRef.current = nextElements;
+    setCurrentNodes(nodesWithCallbacks(nextElements, filesRef.current, appStateRef.current.selectedElementIds));
+    emit();
+  }, [emit, nodesWithCallbacks, pushHistory, setCurrentNodes]);
+
+  const handleConnect = useCallback((connection: Connection) => {
+    if (!connection.source || !connection.target || connection.source === connection.target) return;
+    const source = elementsRef.current.find((element) => String(element.id) === connection.source && !element.isDeleted);
+    const target = elementsRef.current.find((element) => String(element.id) === connection.target && !element.isDeleted);
+    if (!source || !target || isBoundLineElement(source) || isBoundLineElement(target)) return;
+    const pairKey = [String(source.id), String(target.id)].sort().join("::");
+    const hasExistingConnection = elementsRef.current.some((element) => {
+      if (!isBoundLineElement(element)) return false;
+      const start = bindingFrom(element.startBinding)?.elementId;
+      const end = bindingFrom(element.endBinding)?.elementId;
+      return start && end && [String(start), String(end)].sort().join("::") === pairKey;
+    });
+    if (hasExistingConnection) return;
+
+    const sourceSide = sideFromHandle(connection.sourceHandle, "right");
+    const targetSide = sideFromHandle(connection.targetHandle, "left");
+    const line = createBoundLineElement(source, target, sourceSide, targetSide);
+    const nextElements = elementsRef.current.map((element) => {
+      if (element.id === source.id || element.id === target.id) {
+        const boundElements = Array.isArray(element.boundElements) ? [...element.boundElements] : [];
+        boundElements.push({ type: "arrow", id: line.id });
+        return { ...element, boundElements };
+      }
+      return element;
+    });
+
+    pushHistory();
+    elementsRef.current = [...nextElements, line];
+    setCurrentNodes(nodesWithCallbacks(elementsRef.current, filesRef.current, appStateRef.current.selectedElementIds));
+    emit();
+  }, [emit, nodesWithCallbacks, pushHistory, setCurrentNodes]);
+
+  const handleSelectionChange = useCallback(({ nodes: selectedNodes, edges: selectedEdges }: { nodes: CanvasNode[]; edges: CanvasEdge[] }) => {
+    const selectedIds = selectedIdsFromNodes(selectedNodes);
+    for (const edge of selectedEdges) selectedIds[edge.data?.elementId ?? edge.id] = true;
+    appStateRef.current = { ...appStateRef.current, selectedElementIds: selectedIds };
     emit();
   }, [emit]);
 
@@ -544,7 +761,7 @@ export function ReactFlowCanvas({
     emit();
   }, [emit, updateViewportAppState]);
 
-  const handleInit = useCallback((instance: ReactFlowInstance<CanvasNode>) => {
+  const handleInit = useCallback((instance: ReactFlowInstance<CanvasNode, CanvasEdge>) => {
     flowRef.current = instance;
     instance.setViewport(viewportFromAppState(appStateRef.current));
     onApiReady?.(api);
@@ -576,16 +793,18 @@ export function ReactFlowCanvas({
     >
       <ReactFlow
         nodes={nodes}
-        edges={[]}
+        edges={edges}
         nodeTypes={nodeTypes}
         onInit={handleInit}
         onNodesChange={handleNodesChange}
+        onEdgesChange={handleEdgesChange}
+        onConnect={handleConnect}
         onSelectionChange={handleSelectionChange}
         onMove={handleMove}
         onPaneClick={handlePaneClick}
         defaultViewport={defaultViewport}
         fitView={false}
-        nodesConnectable={false}
+        nodesConnectable
         deleteKeyCode={["Backspace", "Delete"]}
         selectionOnDrag={activeTool === "selection"}
         panOnDrag={activeTool === "hand" ? true : [1, 2]}
