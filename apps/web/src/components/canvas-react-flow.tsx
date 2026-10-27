@@ -80,12 +80,8 @@ type Binding = {
 
 type HandleSide = "top" | "right" | "bottom" | "left";
 
-const HANDLE_SIDES: Array<{ side: HandleSide; position: Position }> = [
-  { side: "top", position: Position.Top },
-  { side: "right", position: Position.Right },
-  { side: "bottom", position: Position.Bottom },
-  { side: "left", position: Position.Left },
-];
+const SOURCE_HANDLE = { side: "right" as HandleSide, position: Position.Right };
+const TARGET_HANDLE = { side: "left" as HandleSide, position: Position.Left };
 
 const DEFAULT_ELEMENT_WIDTH = 240;
 const DEFAULT_ELEMENT_HEIGHT = 160;
@@ -102,20 +98,11 @@ function bindingFrom(value: unknown): Binding | null {
 }
 
 function isBoundLineElement(element: CanvasElement) {
+  if (element.isDeleted) return false;
   if (element.type !== "line" && element.type !== "arrow") return false;
   const start = bindingFrom(element.startBinding);
   const end = bindingFrom(element.endBinding);
   return Boolean(start?.elementId && end?.elementId);
-}
-
-function sideFromFixedPoint(binding: Binding | null, fallback: HandleSide): HandleSide {
-  const point = Array.isArray(binding?.fixedPoint) ? binding?.fixedPoint : null;
-  if (!point || point.length < 2) return fallback;
-  const x = Number(point[0]);
-  const y = Number(point[1]);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return fallback;
-  if (Math.abs(x - 0.5) >= Math.abs(y - 0.5)) return x >= 0.5 ? "right" : "left";
-  return y >= 0.5 ? "bottom" : "top";
 }
 
 function fixedPointForSide(side: HandleSide): [number, number] {
@@ -139,11 +126,6 @@ function pointForSide(element: CanvasElement, side: HandleSide) {
   }
 }
 
-function sideFromHandle(handle: string | null | undefined, fallback: HandleSide): HandleSide {
-  const side = handle?.split("-").at(-1);
-  return side === "top" || side === "right" || side === "bottom" || side === "left" ? side : fallback;
-}
-
 function handleOffset(type: "source" | "target", side: HandleSide): React.CSSProperties {
   const offset = side === "top" || side === "bottom"
     ? { marginLeft: type === "source" ? 8 : -8 }
@@ -151,15 +133,44 @@ function handleOffset(type: "source" | "target", side: HandleSide): React.CSSPro
   return { ...offset, zIndex: 10, pointerEvents: "all" };
 }
 
+function boundConnectionIds(element: CanvasElement): { source: string; target: string } | null {
+  if (!isBoundLineElement(element)) return null;
+  const start = bindingFrom(element.startBinding)?.elementId;
+  const end = bindingFrom(element.endBinding)?.elementId;
+  if (!start || !end) return null;
+  return { source: String(start), target: String(end) };
+}
+
+function wouldCreateCycle(elements: CanvasElement[], source: string, target: string): boolean {
+  const adjacency = new Map<string, string[]>();
+  for (const element of elements) {
+    const connection = boundConnectionIds(element);
+    if (!connection) continue;
+    const next = adjacency.get(connection.source) ?? [];
+    next.push(connection.target);
+    adjacency.set(connection.source, next);
+  }
+
+  const visited = new Set<string>();
+  const pending = [target];
+  while (pending.length) {
+    const current = pending.pop();
+    if (!current || visited.has(current)) continue;
+    if (current === source) return true;
+    visited.add(current);
+    pending.push(...(adjacency.get(current) ?? []));
+  }
+  return false;
+}
+
 function buildEdges(elements: CanvasElement[]): CanvasEdge[] {
   const activeIds = new Set(elements.filter((element) => !element.isDeleted).map((element) => String(element.id)));
   const seenPairs = new Set<string>();
   return elements.flatMap<CanvasEdge>((element) => {
     if (!isBoundLineElement(element)) return [];
-    const start = bindingFrom(element.startBinding);
-    const end = bindingFrom(element.endBinding);
-    const source = start?.elementId ? String(start.elementId) : "";
-    const target = end?.elementId ? String(end.elementId) : "";
+    const connection = boundConnectionIds(element);
+    const source = connection?.source ?? "";
+    const target = connection?.target ?? "";
     if (!source || !target || source === target || !activeIds.has(source) || !activeIds.has(target)) return [];
     const pairKey = [source, target].sort().join("::");
     if (seenPairs.has(pairKey)) return [];
@@ -169,8 +180,8 @@ function buildEdges(elements: CanvasElement[]): CanvasEdge[] {
       id: String(element.id),
       source,
       target,
-      sourceHandle: `source-${sideFromFixedPoint(start, "right")}`,
-      targetHandle: `target-${sideFromFixedPoint(end, "left")}`,
+      sourceHandle: "source-right",
+      targetHandle: "target-left",
       type: "smoothstep",
       data: { elementId: String(element.id) },
       style: {
@@ -319,26 +330,20 @@ const CanvasFlowNode = memo(function CanvasFlowNode({ id, data, selected }: Node
 
   return (
     <>
-      {HANDLE_SIDES.map(({ side, position }) => (
-        <Handle
-          key={`target-${side}`}
-          id={`target-${side}`}
-          type="target"
-          position={position}
-          style={handleOffset("target", side)}
-          className="!h-3 !w-3 !border-2 !border-background !bg-emerald-500"
-        />
-      ))}
-      {HANDLE_SIDES.map(({ side, position }) => (
-        <Handle
-          key={`source-${side}`}
-          id={`source-${side}`}
-          type="source"
-          position={position}
-          style={handleOffset("source", side)}
-          className="!h-3 !w-3 !border-2 !border-background !bg-primary"
-        />
-      ))}
+      <Handle
+        id="target-left"
+        type="target"
+        position={TARGET_HANDLE.position}
+        style={handleOffset("target", TARGET_HANDLE.side)}
+        className="!h-3 !w-3 !border-2 !border-background !bg-emerald-500"
+      />
+      <Handle
+        id="source-right"
+        type="source"
+        position={SOURCE_HANDLE.position}
+        style={handleOffset("source", SOURCE_HANDLE.side)}
+        className="!h-3 !w-3 !border-2 !border-background !bg-primary"
+      />
       <NodeResizer
         isVisible={selected}
         minWidth={24}
@@ -719,6 +724,7 @@ export function ReactFlowCanvas({
 
   const handleConnect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target || connection.source === connection.target) return;
+    if (connection.sourceHandle !== "source-right" || connection.targetHandle !== "target-left") return;
     const source = elementsRef.current.find((element) => String(element.id) === connection.source && !element.isDeleted);
     const target = elementsRef.current.find((element) => String(element.id) === connection.target && !element.isDeleted);
     if (!source || !target || isBoundLineElement(source) || isBoundLineElement(target)) return;
@@ -730,10 +736,9 @@ export function ReactFlowCanvas({
       return start && end && [String(start), String(end)].sort().join("::") === pairKey;
     });
     if (hasExistingConnection) return;
+    if (wouldCreateCycle(elementsRef.current, String(source.id), String(target.id))) return;
 
-    const sourceSide = sideFromHandle(connection.sourceHandle, "right");
-    const targetSide = sideFromHandle(connection.targetHandle, "left");
-    const line = createBoundLineElement(source, target, sourceSide, targetSide);
+    const line = createBoundLineElement(source, target, "right", "left");
     const nextElements = elementsRef.current.map((element) => {
       if (element.id === source.id || element.id === target.id) {
         const boundElements = Array.isArray(element.boundElements) ? [...element.boundElements] : [];
