@@ -74,6 +74,7 @@ import { registerJobRoutes } from "./http/jobs.js";
 import { registerBrandKitRoutes } from "./http/brand-kits.js";
 import { registerCanvasRoutes } from "./http/canvases.js";
 import { registerImageOpRoutes } from "./http/image-ops.js";
+import { registerPatternRoutes } from "./http/patterns.js";
 import { registerChatRoutes } from "./http/chat.js";
 import { registerGenerateRoutes } from "./http/generate.js";
 import { registerHealthRoutes } from "./http/health.js";
@@ -293,6 +294,10 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     auth,
     createUserClient,
     env,
+  });
+  void registerPatternRoutes(app, {
+    auth,
+    createUserClient,
   });
   void registerSettingsRoutes(app, {
     auth,

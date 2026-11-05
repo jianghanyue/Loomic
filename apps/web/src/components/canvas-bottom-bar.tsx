@@ -20,6 +20,8 @@ interface CanvasBottomBarProps {
   onToggleLayers: () => void;
   filesOpen: boolean;
   onToggleFiles: () => void;
+  workflowOpen: boolean;
+  onToggleWorkflow: () => void;
   /** Whether any left panel (layers/files) is open — shifts the bar right */
   leftPanelOpen: boolean;
 }
@@ -33,6 +35,7 @@ const MinusIcon = ({ className }: { className?: string }) => <Ico className={cla
 const PlusIcon = ({ className }: { className?: string }) => <Ico className={className}><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></Ico>;
 const LayersIcon = ({ className }: { className?: string }) => <Ico className={className} vb="0 0 20 20" fill="currentColor"><path d="M17.189 12.48a.65.65 0 0 1 .622 1.141l-7.5 4.1a.65.65 0 0 1-.623 0l-7.5-4.1a.65.65 0 0 1 .624-1.14L10 16.41zm0-3.036a.65.65 0 0 1 .622 1.14l-7.5 4.1a.65.65 0 0 1-.623 0l-7.5-4.1a.65.65 0 0 1 .624-1.14L10 13.374zm-7.426-7.2a.65.65 0 0 1 .549.035l7.5 4.1a.651.651 0 0 1 0 1.14l-7.5 4.101a.65.65 0 0 1-.624 0l-7.5-4.1a.651.651 0 0 1 0-1.14l7.5-4.101zM3.854 6.948 10 10.31l6.145-3.36L10 3.59z" /></Ico>;
 const FileIcon = ({ className }: { className?: string }) => <Ico className={className} vb="0 0 24 24"><path d="M9 17h6M9 13h6M13 3H8.2c-1.12 0-1.68 0-2.108.218a2 2 0 0 0-.874.874C5 4.52 5 5.08 5 6.2v11.6c0 1.12 0 1.68.218 2.108a2 2 0 0 0 .874.874C6.52 21 7.08 21 8.2 21h7.6c1.12 0 1.68 0 2.108-.218a2 2 0 0 0 .874-.874C19 19.48 19 18.92 19 17.8V9m-6-6 6 6m-6-6v4.4c0 .56 0 .84.109 1.054a1 1 0 0 0 .437.437C13.76 9 14.04 9 14.6 9H19" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></Ico>;
+const WorkflowIcon = ({ className }: { className?: string }) => <Ico className={className} vb="0 0 20 20" fill="none"><rect x="2.5" y="3" width="5" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" /><rect x="12.5" y="13" width="5" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" /><rect x="12.5" y="3" width="5" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" /><path d="M7.5 5h5M15 7v6M7.5 5c0 4 7.5 0 7.5 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></Ico>;
 const CloseIcon = ({ className }: { className?: string }) => <Ico className={className}><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></Ico>;
 
 /* checkerboard pattern for "transparent" swatch */
@@ -126,7 +129,7 @@ function ElementRow({ el, onSelect }: { el: ExcalidrawEl; onSelect: (id: string)
 /* ================================================================
    Main component
    ================================================================ */
-export function CanvasBottomBar({ canvasApi, layersOpen, onToggleLayers, filesOpen, onToggleFiles, leftPanelOpen }: CanvasBottomBarProps) {
+export function CanvasBottomBar({ canvasApi, layersOpen, onToggleLayers, filesOpen, onToggleFiles, workflowOpen, onToggleWorkflow, leftPanelOpen }: CanvasBottomBarProps) {
   /* ── Zoom state ── */
   const [zoom, setZoom] = useState(1);
   const [zoomMenuOpen, setZoomMenuOpen] = useState(false);
@@ -198,6 +201,7 @@ export function CanvasBottomBar({ canvasApi, layersOpen, onToggleLayers, filesOp
   const toggleBgPicker = useCallback(() => { const next = !bgPickerOpen; closeAllPopovers(); if (next) setBgPickerOpen(true); }, [bgPickerOpen, closeAllPopovers]);
   const handleToggleLayers = useCallback(() => { closeAllPopovers(); onToggleLayers(); }, [closeAllPopovers, onToggleLayers]);
   const handleToggleFiles = useCallback(() => { closeAllPopovers(); onToggleFiles(); }, [closeAllPopovers, onToggleFiles]);
+  const handleToggleWorkflow = useCallback(() => { closeAllPopovers(); onToggleWorkflow(); }, [closeAllPopovers, onToggleWorkflow]);
 
   return (
     <div
@@ -222,6 +226,10 @@ export function CanvasBottomBar({ canvasApi, layersOpen, onToggleLayers, filesOp
         {/* ── Files button ── */}
         <button type="button" className={`${btnClass} ${filesOpen ? "bg-muted text-foreground" : ""}`} onClick={handleToggleFiles} aria-label="Generated files">
           <FileIcon className="h-3.5 w-3.5" />
+        </button>
+
+        <button type="button" className={`${btnClass} ${workflowOpen ? "bg-muted text-foreground" : ""}`} onClick={handleToggleWorkflow} aria-label="图案工作流">
+          <WorkflowIcon className="h-4 w-4" />
         </button>
 
         {/* ── Divider ── */}

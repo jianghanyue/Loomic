@@ -254,6 +254,54 @@ function renderElement(element: CanvasElement, files: Record<string, any>) {
   const { width, height } = elementSize(element);
   const customData = element.customData ?? {};
 
+  if (customData.kind === "workflow-node") {
+    const status = customData.status ?? "idle";
+    const statusLabel = status === "success"
+      ? "已完成"
+      : status === "running"
+        ? "处理中"
+        : status === "error"
+          ? "失败"
+          : status === "warning"
+            ? "需检查"
+            : "待运行";
+    const statusClass = status === "success"
+      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+      : status === "running"
+        ? "border-primary/40 bg-primary/10 text-primary"
+        : status === "error"
+          ? "border-destructive/40 bg-destructive/10 text-destructive"
+          : status === "warning"
+            ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+            : "border-border bg-muted/60 text-muted-foreground";
+    const preview = typeof customData.previewUrl === "string" ? customData.previewUrl : "";
+    return (
+      <div className="flex h-full w-full flex-col rounded-2xl border border-border bg-card/95 p-3 shadow-card backdrop-blur-sm">
+        <div className="flex items-start gap-2">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-foreground text-background text-sm font-semibold">
+            {String(customData.step ?? "✦")}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold text-foreground">{customData.title ?? "图案工作流"}</div>
+            <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{customData.subtitle ?? "图像处理节点"}</div>
+          </div>
+          <span className={`rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${statusClass}`}>{statusLabel}</span>
+        </div>
+        <div className="mt-3 flex min-h-0 flex-1 items-center gap-3 rounded-xl border border-dashed border-border bg-muted/30 p-2">
+          {preview ? (
+            <img src={preview} alt="" className="h-full min-h-12 w-16 rounded-lg object-cover" draggable={false} />
+          ) : (
+            <div className="flex h-12 w-16 shrink-0 items-center justify-center rounded-lg bg-background text-lg text-muted-foreground">{status === "running" ? "…" : "＋"}</div>
+          )}
+          <div className="min-w-0 text-[11px] leading-4 text-muted-foreground">
+            <div className="truncate">{customData.outputLabel ?? "等待上一步输出"}</div>
+            {customData.note ? <div className="mt-1 line-clamp-2 text-amber-700 dark:text-amber-300">{customData.note}</div> : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (element.type === "image") {
     const src = fileSource(element, files);
     return src ? (

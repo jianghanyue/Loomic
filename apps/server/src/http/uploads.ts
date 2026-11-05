@@ -4,6 +4,7 @@ import {
   applicationErrorResponseSchema,
   assetSignedUrlResponseSchema,
   unauthenticatedErrorResponseSchema,
+  uploadListResponseSchema,
   uploadResponseSchema,
 } from "@loomic/shared";
 
@@ -20,7 +21,20 @@ const ALLOWED_MIME_TYPES = new Set([
   "image/webp",
   "image/gif",
   "image/svg+xml",
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/markdown",
+  "text/x-markdown",
+  "text/plain",
 ]);
+
+const MIME_TYPES_BY_EXTENSION: Record<string, string> = {
+  md: "text/markdown",
+  markdown: "text/markdown",
+  txt: "text/plain",
+  pdf: "application/pdf",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+};
 
 export async function registerUploadRoutes(
   app: FastifyInstance,
@@ -48,7 +62,7 @@ export async function registerUploadRoutes(
         );
       }
 
-      const mimeType = file.mimetype;
+      const mimeType = resolveMimeType(file.filename, file.mimetype);
       if (!ALLOWED_MIME_TYPES.has(mimeType)) {
         return reply.code(400).send(
           applicationErrorResponseSchema.parse({
@@ -90,6 +104,32 @@ export async function registerUploadRoutes(
       return sendUploadError(error, reply);
     }
   });
+
+  // List the current user's workspace assets. The web client filters this
+  // shared asset stream to document formats for the project document view.
+  app.get<{ Querystring: { projectId?: string } }>(
+    "/api/uploads",
+    async (request, reply) => {
+      try {
+        const user = await options.auth.authenticate(request);
+        if (!user) return sendUnauthorized(reply);
+
+        const viewer = await options.viewerService.ensureViewer(user);
+        const assets = await options.uploadService.listAssets(user, {
+          workspaceId: viewer.workspace.id,
+          ...(request.query.projectId
+            ? { projectId: request.query.projectId }
+            : {}),
+        });
+
+        return reply
+          .code(200)
+          .send(uploadListResponseSchema.parse({ assets }));
+      } catch (error) {
+        return sendUploadError(error, reply);
+      }
+    },
+  );
 
   // Get signed URL for an asset
   app.get<{ Params: { assetId: string } }>(
@@ -165,4 +205,11 @@ function sendUploadError(error: unknown, reply: FastifyReply) {
       },
     }),
   );
+}
+
+function resolveMimeType(fileName: string, reportedMimeType: string): string {
+  if (ALLOWED_MIME_TYPES.has(reportedMimeType)) return reportedMimeType;
+
+  const extension = fileName.split(".").pop()?.toLowerCase();
+  return extension ? MIME_TYPES_BY_EXTENSION[extension] ?? reportedMimeType : reportedMimeType;
 }

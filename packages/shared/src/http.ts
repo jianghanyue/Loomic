@@ -202,11 +202,22 @@ export const uploadResponseSchema = z.object({
   url: z.string().min(1),
 });
 
+export const uploadAssetItemSchema = z.object({
+  asset: assetObjectSchema,
+  url: z.string().min(1),
+});
+
+export const uploadListResponseSchema = z.object({
+  assets: z.array(uploadAssetItemSchema),
+});
+
 export const assetSignedUrlResponseSchema = z.object({
   url: z.string().min(1),
 });
 
 export type UploadResponse = z.infer<typeof uploadResponseSchema>;
+export type UploadAssetItem = z.infer<typeof uploadAssetItemSchema>;
+export type UploadListResponse = z.infer<typeof uploadListResponseSchema>;
 export type AssetSignedUrlResponse = z.infer<typeof assetSignedUrlResponseSchema>;
 
 export const projectUpdateRequestSchema = z.object({

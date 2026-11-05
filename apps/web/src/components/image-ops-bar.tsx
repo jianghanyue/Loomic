@@ -8,6 +8,7 @@ import {
   PenTool,
   Scissors,
   Wand2,
+  Workflow,
 } from "lucide-react";
 import {
   useCallback,
@@ -123,12 +124,14 @@ export function ImageOpsBar({
   canvasApi,
   selected,
   onCanvasSync,
+  onOpenWorkflow,
 }: {
   accessToken: string;
   canvasId: string;
   canvasApi: any;
   selected: CanvasSelectedElement[];
   onCanvasSync: () => void | Promise<void>;
+  onOpenWorkflow?: () => void;
 }) {
   const toast = useToast();
   const [capabilities, setCapabilities] = useState<ImageOpCapabilities | null>(
@@ -286,6 +289,17 @@ export function ImageOpsBar({
         style={toolbarPosition(bounds, stackSize)}
       >
         <div className={`flex items-center gap-0.5 ${PANEL}`}>
+          {onOpenWorkflow ? (
+            <button
+              type="button"
+              onClick={onOpenWorkflow}
+              className={`${BUTTON} ${BUTTON_IDLE}`}
+              title="创建图案处理工作流"
+            >
+              <Workflow className="size-[15px]" />
+              图案工作流
+            </button>
+          ) : null}
           {ACTIONS.map((action) => {
             const available = capabilities?.ops[action.op] ?? false;
             const detail = capabilities?.details?.[action.op];

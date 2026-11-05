@@ -152,6 +152,43 @@ export async function plainUpscale(
   return { buffer, width, height };
 }
 
+/**
+ * Clean small alpha speckles and isolated edge pixels without a model.
+ * This is exposed to the agent as a deterministic denoise step so the
+ * workflow can remain agent-orchestrated while still working offline.
+ */
+export async function denoiseRgba(input: Buffer): Promise<RasterResult> {
+  const { data, info } = await sharp(input)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const { width: W, height: H } = info;
+  const alpha = (x: number, y: number) => data[(y * W + x) * 4 + 3] ?? 0;
+  const output = Buffer.from(data);
+
+  for (let y = 1; y < H - 1; y += 1) {
+    for (let x = 1; x < W - 1; x += 1) {
+      const p = (y * W + x) * 4;
+      const current = alpha(x, y);
+      if (current === 0) continue;
+      const neighbours = [
+        alpha(x - 1, y),
+        alpha(x + 1, y),
+        alpha(x, y - 1),
+        alpha(x, y + 1),
+      ];
+      const strong = neighbours.filter((value) => value > 80).length;
+      if (current < 80 && strong < 2) output[p + 3] = 0;
+      else if (current >= 80 && strong === 0) output[p + 3] = Math.min(current, 120);
+    }
+  }
+
+  const buffer = await sharp(output, { raw: { width: W, height: H, channels: 4 } })
+    .png()
+    .toBuffer();
+  return { buffer, width: W, height: H };
+}
+
 const TRACE_MAX_SIDE = 1024;
 
 /**

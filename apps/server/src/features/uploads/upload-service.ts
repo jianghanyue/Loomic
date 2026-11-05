@@ -1,4 +1,5 @@
 import type { AssetBucket, AssetObject } from "@loomic/shared";
+import type { UploadAssetItem } from "@loomic/shared";
 
 import type {
   AuthenticatedUser,
@@ -29,11 +30,21 @@ export type UploadFileInput = {
   projectId?: string | undefined;
 };
 
+export type ListAssetsInput = {
+  workspaceId: string;
+  projectId?: string | undefined;
+};
+
 export type UploadService = {
   uploadFile(
     user: AuthenticatedUser,
     input: UploadFileInput,
   ): Promise<{ asset: AssetObject; url: string }>;
+
+  listAssets(
+    user: AuthenticatedUser,
+    input: ListAssetsInput,
+  ): Promise<UploadAssetItem[]>;
 
   getAssetUrl(
     user: AuthenticatedUser,
@@ -115,6 +126,53 @@ export function createUploadService(options: {
         },
         url,
       };
+    },
+
+    async listAssets(user, input) {
+      const client = options.createUserClient(user.accessToken);
+
+      let query = client
+        .from("asset_objects")
+        .select(
+          "id, bucket, object_path, mime_type, byte_size, workspace_id, project_id, created_at",
+        )
+        .eq("workspace_id", input.workspaceId);
+
+      if (input.projectId) {
+        query = query.eq("project_id", input.projectId);
+      }
+
+      const { data, error } = await query.order("created_at", {
+        ascending: false,
+      });
+
+      if (error) {
+        throw new UploadServiceError(
+          "upload_failed",
+          "Failed to load asset metadata.",
+          500,
+        );
+      }
+
+      return Promise.all(
+        (data ?? []).map(async (assetRow) => ({
+          asset: {
+            id: assetRow.id,
+            bucket: assetRow.bucket as AssetBucket,
+            objectPath: assetRow.object_path,
+            mimeType: assetRow.mime_type,
+            byteSize: assetRow.byte_size,
+            workspaceId: assetRow.workspace_id,
+            projectId: assetRow.project_id,
+            createdAt: assetRow.created_at,
+          },
+          url: await getAssetUrl(
+            client,
+            assetRow.bucket,
+            assetRow.object_path,
+          ),
+        })),
+      );
     },
 
     async getAssetUrl(user, assetId) {

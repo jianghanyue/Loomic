@@ -21,6 +21,7 @@ import type {
   SkillDetailResponse,
   SkillListResponse,
   SkillUpdateRequest,
+  UploadListResponse,
   UploadResponse,
   ViewerResponse,
   WorkspaceSettingsResponse,
@@ -253,6 +254,49 @@ export async function runImageOp(
   return await response.json();
 }
 
+export type PatternFromImageResult = {
+  patternId: string;
+  previewElementId: string;
+  repeat: {
+    type: "block" | "half_drop" | "brick" | "mirror";
+    widthCm: number;
+    heightCm: number;
+    dpi: number;
+  };
+  report: {
+    ok: boolean;
+    seamless: boolean;
+    issues: string[];
+    seamDetail?: { leftRight: number; topBottom: number };
+    coveragePercent?: number;
+  };
+};
+
+export async function createPatternFromImage(
+  accessToken: string,
+  canvasId: string,
+  input: {
+    sourceElementId: string;
+    name?: string;
+    repeatType?: "block" | "half_drop" | "brick" | "mirror";
+    widthCm?: number;
+    heightCm?: number;
+    dpi?: number;
+    ground?: string | null;
+  },
+): Promise<PatternFromImageResult> {
+  const response = await fetch(
+    `${getServerBaseUrl()}/api/canvases/${canvasId}/patterns/from-image`,
+    {
+      method: "POST",
+      headers: authJsonHeaders(accessToken),
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) return handleErrorResponse(response);
+  return (await response.json()) as PatternFromImageResult;
+}
+
 export async function uploadThumbnail(
   accessToken: string,
   projectId: string,
@@ -429,6 +473,18 @@ export async function uploadFile(
   });
   if (!response.ok) return handleErrorResponse(response);
   return (await response.json()) as UploadResponse;
+}
+
+export async function fetchUploadedFiles(
+  accessToken: string,
+  projectId?: string,
+): Promise<UploadListResponse> {
+  const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+  const response = await fetch(`${getServerBaseUrl()}/api/uploads${query}`, {
+    headers: authHeaders(accessToken),
+  });
+  if (!response.ok) return handleErrorResponse(response);
+  return (await response.json()) as UploadListResponse;
 }
 
 export async function getAssetUrl(

@@ -20,6 +20,7 @@ import {
   type SubmitVideoJobFn,
 } from "./video-generate.js";
 import { createPersistSandboxFileTool } from "./persist-sandbox-file.js";
+import { createDenoiseTool } from "./denoise.js";
 
 export { createImageGenerateTool } from "./image-generate.js";
 export { createVideoGenerateTool } from "./video-generate.js";
@@ -84,6 +85,7 @@ export function createMainAgentTools(
     }),
     ...createPatternTools(deps),
     ...createImageOpTools(deps),
+    createDenoiseTool(deps),
     // execute 工具由 deepagents FilesystemMiddleware 自动注入，
     // 因为 CompositeBackend 的 default backend 是 LocalShellBackend。
     // 不需要在这里手动注册。

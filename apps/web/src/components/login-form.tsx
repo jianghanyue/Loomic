@@ -54,6 +54,17 @@ export function LoginForm({ initialErrorMessage = null }: LoginFormProps) {
     try {
       await fetchViewer(accessToken);
       router.replace("/home");
+
+      // The auth state listener can finish one tick after the password request.
+      // If the protected route sends us back to /login during that short race,
+      // do one hard navigation so the persisted Supabase session is read again.
+      if (typeof window !== "undefined") {
+        window.setTimeout(() => {
+          if (window.location.pathname === "/login") {
+            window.location.assign("/home");
+          }
+        }, 700);
+      }
     } catch {
       setError("Could not load your workspace. Please try again.");
     }

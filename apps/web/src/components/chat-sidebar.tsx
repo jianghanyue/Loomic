@@ -69,6 +69,8 @@ type ChatSidebarProps = {
   currentBrandKitId?: string | null;
   ws: WebSocketHandle;
   selectedCanvasElements?: CanvasSelectedElement[];
+  /** Exposes the same Agent-backed send path to canvas workflows. */
+  onAgentCommandReady?: (send: (prompt: string) => Promise<void>) => void;
 };
 
 export function ChatSidebar({
@@ -87,6 +89,7 @@ export function ChatSidebar({
   currentBrandKitId,
   ws,
   selectedCanvasElements,
+  onAgentCommandReady,
 }: ChatSidebarProps) {
   const breakpoint = useBreakpoint();
   const isOverlay = breakpoint !== "desktop";
@@ -676,6 +679,13 @@ export function ChatSidebar({
       activeSessionIdRef,
     ],
   );
+
+  useEffect(() => {
+    onAgentCommandReady?.(async (prompt: string) => {
+      await handleSend(prompt);
+    });
+    return () => onAgentCommandReady?.(async () => undefined);
+  }, [handleSend, onAgentCommandReady]);
 
   // ── Mention picker ──
   const mentionPickerItems: MessageMentionPickerItem[] = [

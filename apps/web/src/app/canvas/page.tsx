@@ -22,6 +22,7 @@ import { BrandKitSelector } from "../../components/brand-kit-selector";
 import { CanvasBottomBar } from "../../components/canvas-bottom-bar";
 import { CanvasFilesPanel } from "../../components/canvas-files-panel";
 import { CanvasLayersPanel } from "../../components/canvas-layers-panel";
+import { CanvasImageWorkflow } from "../../components/canvas-image-workflow";
 import { CreditHeaderButton } from "../../components/credits/credit-header-button";
 
 function CanvasPageContent() {
@@ -53,12 +54,14 @@ function CanvasPageContent() {
   });
   const [layersOpen, setLayersOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
+  const [workflowOpen, setWorkflowOpen] = useState(false);
   const [brandKitId, setBrandKitId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState("Untitled");
   const [selectedCanvasElements, setSelectedCanvasElements] = useState<CanvasSelectedElement[]>([]);
 
   const canvasApiRef = useRef<any>(null);
   const [canvasApi, setCanvasApi] = useState<any>(null);
+  const agentCommandRef = useRef<((prompt: string) => Promise<void>) | null>(null);
 
   const signOutRef = useRef(signOut);
   signOutRef.current = signOut;
@@ -70,8 +73,14 @@ function CanvasPageContent() {
   const handleToggleChat = useCallback(() => setChatOpen((v) => !v), []);
   const handleToggleLayers = useCallback(() => { setLayersOpen((v) => !v); setFilesOpen(false); }, []);
   const handleToggleFiles = useCallback(() => { setFilesOpen((v) => !v); setLayersOpen(false); }, []);
+  const handleToggleWorkflow = useCallback(() => {
+    setWorkflowOpen((v) => !v);
+    setLayersOpen(false);
+    setFilesOpen(false);
+  }, []);
   const handleCloseLayers = useCallback(() => setLayersOpen(false), []);
   const handleCloseFiles = useCallback(() => setFilesOpen(false), []);
+  const handleCloseWorkflow = useCallback(() => setWorkflowOpen(false), []);
 
   const accessToken = session?.access_token;
   const accessTokenRef = useRef(accessToken);
@@ -83,6 +92,10 @@ function CanvasPageContent() {
   const handleApiReady = useCallback((api: any) => {
     canvasApiRef.current = api;
     setCanvasApi(api);
+  }, []);
+
+  const handleAgentCommandReady = useCallback((send: (prompt: string) => Promise<void>) => {
+    agentCommandRef.current = send;
   }, []);
 
   const handleImageGenerated = useCallback((artifact: ImageArtifact) => {
@@ -293,6 +306,11 @@ function CanvasPageContent() {
           canvasApi={canvasApi}
           selected={selectedCanvasElements}
           onCanvasSync={handleCanvasSync}
+          onOpenWorkflow={() => {
+            setWorkflowOpen(true);
+            setLayersOpen(false);
+            setFilesOpen(false);
+          }}
         />
         <CanvasBottomBar
           canvasApi={canvasApi}
@@ -300,7 +318,9 @@ function CanvasPageContent() {
           onToggleLayers={handleToggleLayers}
           filesOpen={filesOpen}
           onToggleFiles={handleToggleFiles}
-          leftPanelOpen={layersOpen || filesOpen}
+          workflowOpen={workflowOpen}
+          onToggleWorkflow={handleToggleWorkflow}
+          leftPanelOpen={layersOpen || filesOpen || workflowOpen}
         />
         <CanvasLayersPanel
           canvasApi={canvasApi}
@@ -311,6 +331,19 @@ function CanvasPageContent() {
           canvasApi={canvasApi}
           open={filesOpen}
           onClose={handleCloseFiles}
+        />
+        <CanvasImageWorkflow
+          accessToken={accessToken}
+          canvasId={canvasData.id}
+          canvasApi={canvasApi}
+          selected={selectedCanvasElements}
+          open={workflowOpen}
+          onClose={handleCloseWorkflow}
+          onCanvasSync={handleCanvasSync}
+          onAgentRun={async (prompt) => {
+            if (!agentCommandRef.current) throw new Error("Agent 还没有连接");
+            await agentCommandRef.current(prompt);
+          }}
         />
       </div>
       <ChatSidebar
@@ -329,6 +362,7 @@ function CanvasPageContent() {
         currentBrandKitId={brandKitId}
         ws={ws}
         selectedCanvasElements={selectedCanvasElements}
+        onAgentCommandReady={handleAgentCommandReady}
       />
     </div>
   );
